@@ -43,7 +43,7 @@ void PID(float speed, int pulses)
         deltaPulsesLeft = 0, deltaPulsesRight = 0,
         errorDelta = 0, errorTotal = 0;
     float newSpeedRight = 0;
-    const float kp = 0.001, ki = 0.002;
+    const float kp = 0.005, ki = 0.001;
 
     ENCODER_Reset(LEFT);
     ENCODER_Reset(RIGHT);
@@ -62,7 +62,7 @@ void PID(float speed, int pulses)
         errorTotal = totalPulsesLeft - totalPulsesRight;
         newSpeedRight = speed + (errorDelta * kp) + (errorTotal * ki);
         MOTOR_SetSpeed(RIGHT, newSpeedRight);
-        delay(50);
+        delay(30);
     }
 
     //we could make it decelerate over time
@@ -74,7 +74,7 @@ void PID(float speed, int pulses)
 ///distance : The distance to cover in centimeters. Can be negative.
 void Move(float distance)
 {
-    const float baseSpeed = 0.4;
+    const float baseSpeed = 0.38;
     int distanceSign = distance > 0 ? 1 : -1;
     //distanceSign is used to reverse the speed if the distance is negative
     PID(distanceSign * baseSpeed, DistanceToPulses(distanceSign * distance));
@@ -138,6 +138,13 @@ void Stop()
     MOTOR_SetSpeed(RIGHT, 0);
 }
 
+void UTurn()
+{
+    Turn(-PI/2);
+    Move(-19.33); //radius
+    Turn(-PI/2);
+}
+
 void Parcours()
 {
     //Test pour le parcours
@@ -145,13 +152,27 @@ void Parcours()
     Turn(PI/2);
     Move(70);
     Turn(-PI/2);
-    Move(75);
+    Move(80);
     Turn(-PI/4);
-    Move(175);
+    Move(170);
     Turn(PI/2);
     Move(45);
     Turn(-PI/4);
-    Move(100);
+    Move(120);
+
+    UTurn();
+
+    Move(120);
+    Turn(PI/4);
+    Move(45);
+    Turn(-PI/2);
+    Move(170);
+    Turn(PI/4);
+    Move(80);
+    Turn(PI/2);
+    Move(70);
+    Turn(-PI/2);
+    Move(120);
 }
 
 
