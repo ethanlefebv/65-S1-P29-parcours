@@ -3,7 +3,7 @@ Projet: main.ino
 Equipe: P29
 Auteurs: Étienne Lefebvre
 Description: Programme pour deplacer le ROBUS pour le defi du parcours.
-Date: 5 octobre 2019
+Date: 8 octobre 2019
 */
 
 /* ****************************************************************************
@@ -22,6 +22,7 @@ Variables globales et defines
 // L'ensemble des fonctions y ont acces
 const float WHEEL_CIRCUMFERENCE = 23.94;
 const int PULSES_PER_CYCLE = 3200;
+const float BASE_SPEED = 0.8;
 
 /* ****************************************************************************
 Vos propres fonctions sont creees ici
@@ -36,48 +37,67 @@ int DistanceToPulses(float distance)
 
 ///Function to move ROBUS in a straight line.
 ///speed : The base speed.
-///pulses : The distance to travel in pulses.
+///pulses : The distance to travel in pulses. Should always be positive.
 void PID(float speed, int pulses)
 {
     int totalPulsesLeft = 0, totalPulsesRight = 0, 
         deltaPulsesLeft = 0, deltaPulsesRight = 0,
         errorDelta = 0, errorTotal = 0;
-    float newSpeedRight = 0;
-    const float kp = 0.005, ki = 0.001;
+    const float kp = 0.001, ki = 0.001;
+    
+    //the number of pulses ROBUS will accelerate/decelerate
+    float pulsesAcceleration = 1/10.0 * pulses;
 
+    float masterSpeed = 0, slaveSpeed = 0, slowSpeed = 0.2;
+    int speedSign = speed > 0 ? 1 : -1;
+    speed *= speedSign; //we'll convert it back to the negative value (if that's the case) at the end
     ENCODER_Reset(LEFT);
     ENCODER_Reset(RIGHT);
 
-    //we could make it accelerate over time
-    MOTOR_SetSpeed(LEFT, speed);
-    MOTOR_SetSpeed(RIGHT, speed);
+    //we give it a slow speed to start
+    MOTOR_SetSpeed(LEFT, slowSpeed);
+    MOTOR_SetSpeed(RIGHT, slowSpeed);
 
-    while(abs(totalPulsesRight) < pulses)
+    while(totalPulsesRight < pulses)
     {
-        deltaPulsesLeft = ENCODER_ReadReset(LEFT);
-        deltaPulsesRight = ENCODER_ReadReset(RIGHT);
+        deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
+        deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
         totalPulsesLeft += deltaPulsesLeft;
         totalPulsesRight += deltaPulsesRight;
-        errorDelta = deltaPulsesLeft - deltaPulsesRight;
-        errorTotal = totalPulsesLeft - totalPulsesRight;
-        newSpeedRight = speed + (errorDelta * kp) + (errorTotal * ki);
-        MOTOR_SetSpeed(RIGHT, newSpeedRight);
-        delay(30);
-    }
+        
+        //change the 2 following lines if we change the master
+        errorDelta = deltaPulsesRight - deltaPulsesLeft;
+        errorTotal = totalPulsesRight - totalPulsesLeft;
 
-    //we could make it decelerate over time
+        if(totalPulsesRight < pulsesAcceleration)
+        {
+            masterSpeed = slowSpeed + (totalPulsesRight / pulsesAcceleration * (speed - slowSpeed));
+        }
+        else if(totalPulsesRight > pulses - pulsesAcceleration)
+        {
+            masterSpeed = slowSpeed + ((pulses - totalPulsesRight) / pulsesAcceleration * (speed - slowSpeed));
+        }
+        else //not accelerating nor decelerating
+        {
+            masterSpeed = speed;
+        }
+        slaveSpeed = masterSpeed + (errorDelta * kp) + (errorTotal * ki);
+        MOTOR_SetSpeed(LEFT, speedSign * slaveSpeed);
+        MOTOR_SetSpeed(RIGHT, speedSign * masterSpeed);
+        delay(40);
+    }
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
 }
 
 ///Move ROBUS according to the distance specified.
 ///distance : The distance to cover in centimeters. Can be negative.
-void Move(float distance)
+///speed : The base speed. Must be between 0.15 and 1 for it to work.
+void Move(float distance, float speed)
 {
-    const float baseSpeed = 0.38;
     int distanceSign = distance > 0 ? 1 : -1;
     //distanceSign is used to reverse the speed if the distance is negative
-    PID(distanceSign * baseSpeed, DistanceToPulses(distanceSign * distance));
+    PID(distanceSign * speed, DistanceToPulses(abs(distance)));
 }
 
 ///Turn ROBUS according to the angle specified.
@@ -88,17 +108,14 @@ void Turn(float angle)
     //only one wheel will move
     float radius = 19.33; //in centimeters
     int motor = angle > 0 ? RIGHT : LEFT;
-    int totalPulses = 0, deltaPulses = 0;
+    int totalPulses = 0;
     float pulsesRotation = DistanceToPulses(abs(radius * angle));
-    Serial.println(pulsesRotation);
 
     ENCODER_Reset(motor);
-    MOTOR_SetSpeed(motor, 0.3);
+    MOTOR_SetSpeed(motor, 0.4);
     while(totalPulses < pulsesRotation)
     {
-        deltaPulses = ENCODER_ReadReset(motor);
-        Serial.println(deltaPulses);
-        totalPulses += deltaPulses;
+        totalPulses = ENCODER_Read(motor);
         delay(20); //might not be necessary
     }
     MOTOR_SetSpeed(motor, 0);    
@@ -106,73 +123,48 @@ void Turn(float angle)
 
 //----------------
 
-///Test function to accelerate.
-void Run()
+void Test()
 {
-    //Accelerate over a second
-    for(int i = 5; i > 0; i--)
-    {
-        float speed = 0.5 / i;
-        MOTOR_SetSpeed(LEFT, speed);
-        MOTOR_SetSpeed(RIGHT, speed);
-        delay(250);
-    }
-    //Set normal speed
-    MOTOR_SetSpeed(LEFT, 0.5);
-    MOTOR_SetSpeed(RIGHT, 0.5);
-}
-
-///Test function to slow down until full stop.
-void Stop()
-{ 
-    //Slows down over a second
-    for(int i = 1; i < 5; i++)
-    {
-        float speed = 0.5 / i;
-        MOTOR_SetSpeed(LEFT, speed);
-        MOTOR_SetSpeed(RIGHT, speed);
-        delay(250);
-    }
-    //full stop
-    MOTOR_SetSpeed(LEFT, 0);
-    MOTOR_SetSpeed(RIGHT, 0);
+    Move(100, 0.6);
+    UTurn();
+    Move(100, 0.6);
 }
 
 void UTurn()
 {
     Turn(-PI/2);
-    Move(-19.33); //radius
+    Move(/*-19.33*/-18, 0.3); //radius
     Turn(-PI/2);
 }
 
 void Parcours()
 {
     //Test pour le parcours
-    Move(112);
+    Move(112, BASE_SPEED);
     Turn(PI/2);
-    Move(70);
+    Move(70, BASE_SPEED - 0.1);
     Turn(-PI/2);
-    Move(80);
+    Move(75, BASE_SPEED - 0.1);
     Turn(-PI/4);
-    Move(170);
+    Move(180, BASE_SPEED);
     Turn(PI/2);
-    Move(45);
+    Move(40, 0.5);
     Turn(-PI/4);
-    Move(120);
-
+    Move(120, BASE_SPEED);
+    
     UTurn();
 
-    Move(120);
-    Turn(PI/4);
-    Move(45);
+    Move(120, BASE_SPEED);
+    Turn(2*PI/9);
+    Move(40, 0.5);
     Turn(-PI/2);
-    Move(170);
+    Move(180, BASE_SPEED);
     Turn(PI/4);
-    Move(80);
+    Move(75, BASE_SPEED - 0.1);
     Turn(PI/2);
-    Move(70);
+    Move(60, BASE_SPEED - 0.1);
     Turn(-PI/2);
-    Move(120);
+    Move(125, BASE_SPEED);
 }
 
 
@@ -194,12 +186,13 @@ Fonctions de boucle infini (loop())
 **************************************************************************** */
 // -> Se fait appeler perpetuellement suite au "setup"
 
-void loop() 
+void loop()
 {
     if(ROBUS_IsBumper(REAR))
     {
         delay(1000);
         Parcours();
+        //Test();
     }
     // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
