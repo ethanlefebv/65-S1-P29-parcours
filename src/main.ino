@@ -3,7 +3,7 @@ Projet: main.ino
 Equipe: P29
 Auteurs: Étienne Lefebvre
 Description: Programme pour deplacer le ROBUS pour le defi du parcours.
-Date: 8 octobre 2019
+Date: 10 octobre 2019
 */
 
 /* ****************************************************************************
@@ -137,7 +137,7 @@ void UTurn()
     Turn(-PI/2);
 }
 
-void Parcours()
+void ParcoursTest()
 {
     //Test pour le parcours
     Move(112, BASE_SPEED);
@@ -165,6 +165,46 @@ void Parcours()
     Move(60, BASE_SPEED - 0.1);
     Turn(-PI/2);
     Move(125, BASE_SPEED);
+}
+
+void Parcours()
+{
+    Move(112, BASE_SPEED);
+    Turn(PI/2);
+    Move(70, BASE_SPEED - 0.1);
+    Turn(-PI/2);
+    Move(25, BASE_SPEED - 0.3);
+    Turn(-PI/2);
+    Move(30, BASE_SPEED - 0.2);
+
+    //it's now in the rectangle thing
+    Turn(PI/2);// - PI/16);
+    Move(185, BASE_SPEED); //that's the big one
+    Turn(-PI/2);
+    Move(25, BASE_SPEED - 0.3);
+    //here we have the choice to finish or kick the ball
+    Turn(PI/2); //we'll kick it later
+    Move(120, BASE_SPEED);
+
+    UTurn();
+
+    Move(250, BASE_SPEED); //we'll kick the ball
+    Move(-100, BASE_SPEED); //negative distance
+    Turn(-PI/2);
+    Move(25, BASE_SPEED - 0.3);
+    Turn(PI/2);
+    Move(185, BASE_SPEED); //the big one again
+
+    //it's now in the rectangle thing
+    Turn(-PI/2);
+    Move(30, BASE_SPEED - 0.2);
+    Turn(PI/2);
+    Move(25, BASE_SPEED - 0.3);
+    Turn(PI/2);
+    Move(70, BASE_SPEED - 0.1);
+    Turn(-PI/2);
+    Move(120, BASE_SPEED); //the last stretch
+    
 }
 
 
