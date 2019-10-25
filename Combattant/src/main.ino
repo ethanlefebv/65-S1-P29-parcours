@@ -3,7 +3,7 @@ Projet: main.ino
 Equipe: P29
 Auteurs: Étienne Lefebvre
 Description: Programme pour deplacer le ROBUS pour le defi du combattant.
-Date: 17 octobre 2019
+Date: 25 octobre 2019
 */
 
 /* ****************************************************************************
@@ -125,48 +125,18 @@ void Turn(float angle)
 
 void Test()
 {
-    Move(100, 0.6);
-    UTurn();
-    Move(100, 0.6);
+    //do some tests
+    Serial.print("values : ");
+    Serial.print(analogRead(A0)); Serial.print("\t");
+    Serial.print(analogRead(A1)); Serial.print("\t");
+    Serial.print(analogRead(A2)); Serial.print("\t");
+    Serial.print(analogRead(A3)); Serial.print("\t");
+    Serial.print(analogRead(A4)); Serial.print("\t");
+    Serial.print(analogRead(A5)); Serial.print("\t");
+    Serial.print(analogRead(A6)); Serial.print("\t");
+    Serial.print(analogRead(A7)); Serial.print("\n");
+    Serial.println();
 }
-
-void UTurn()
-{
-    Turn(-PI/2);
-    Move(/*-19.33*/-18, 0.3); //radius
-    Turn(-PI/2);
-}
-
-void Parcours()
-{
-    //Test pour le parcours
-    Move(112, BASE_SPEED);
-    Turn(PI/2);
-    Move(70, BASE_SPEED - 0.1);
-    Turn(-PI/2);
-    Move(75, BASE_SPEED - 0.1);
-    Turn(-PI/4);
-    Move(180, BASE_SPEED);
-    Turn(PI/2);
-    Move(40, 0.5);
-    Turn(-PI/4);
-    Move(120, BASE_SPEED);
-    
-    UTurn();
-
-    Move(120, BASE_SPEED);
-    Turn(2*PI/9);
-    Move(40, 0.5);
-    Turn(-PI/2);
-    Move(180, BASE_SPEED);
-    Turn(PI/4);
-    Move(75, BASE_SPEED - 0.1);
-    Turn(PI/2);
-    Move(60, BASE_SPEED - 0.1);
-    Turn(-PI/2);
-    Move(125, BASE_SPEED);
-}
-
 
 /* ****************************************************************************
 Fonctions d'initialisation (setup)
@@ -191,8 +161,7 @@ void loop()
     if(ROBUS_IsBumper(REAR))
     {
         delay(1000);
-        Parcours();
-        //Test();
+        Test();
     }
     // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
