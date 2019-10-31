@@ -35,33 +35,6 @@ int DistanceToPulses(float distance)
     return (distance / WHEEL_CIRCUMFERENCE) * PULSES_PER_CYCLE;
 }
 
-///Finds the two sensors that are above the line.
-///firstSensor : the pin of the first sensor (A0-A7).
-///secondSensor : the pin of the second sensor (A0-A7).
-int FindLine(int* firstSensor, int* secondSensor)
-{
-    int posBiggestValue = A0;
-    //technically, the line should be under only 2 sensors of the 8
-
-    //we start by searching for the biggest value (where the line is)
-    for(int i = A1; i <= A7; i++)
-    {
-        posBiggestValue = analogRead(i) > analogRead(posBiggestValue) ? i : posBiggestValue;
-    }
-
-    //now we find the second sensor with the biggest value
-    if(analogRead(posBiggestValue - 1) > analogRead(posBiggestValue + 1))
-    {
-        *firstSensor = posBiggestValue - 1;
-        *secondSensor = posBiggestValue;
-    }
-    else
-    {
-        *firstSensor = posBiggestValue;
-        *secondSensor = posBiggestValue + 1;
-    }
-}
-
 ///Returns true if at least one sensor has some black under it.
 bool IsOnALine()
 {
@@ -101,7 +74,7 @@ void PID(float speed, int pulses, bool useLineTracker)
     MOTOR_SetSpeed(RIGHT, slowSpeed);
 
     if(useLineTracker)
-        FindLine(&lineFirstSensor, &lineSecondSensor);
+        //FindLine(&lineFirstSensor, &lineSecondSensor);
 
     while(totalPulsesRight < pulses)
     {
@@ -169,7 +142,7 @@ void LineTracker(float speed, int pulses)
     MOTOR_SetSpeed(LEFT, slowSpeed);
     MOTOR_SetSpeed(RIGHT, slowSpeed);
 
-    FindLine(&firstSensor, &secondSensor);
+    //FindLine(&firstSensor, &secondSensor);
 
     while(totalPulsesRight < pulses)
     {
@@ -205,34 +178,37 @@ void LineTracker(float speed, int pulses)
 ///speed : The base speed.
 void LineTracker(float speed)
 {
-    int firstSensor = 0, secondSensor = 0;
-    float lineErrorLeft = 0, lineErrorRight = 0;
+    float avgLeft = 0, avgRight = 0,
+        avgLeftProp = 0, avgRightProp = 0,
+        avgErrorLeft = 0, avgErrorRight = 0;
 
-    const float kLine = 0.05;
+    const float kLine = 0.4;
     
-    float masterSpeed = 0, slaveSpeed = 0, slowSpeed = 0.2;
+    float speedLeft = 0, speedRight = 0, slowSpeed = 0.2;
     int speedSign = speed > 0 ? 1 : -1;
     speed *= speedSign; //we'll convert it back to the negative value (if that's the case) at the end
     ENCODER_Reset(LEFT);
     ENCODER_Reset(RIGHT);
 
     //we give it a slow speed to start
-    MOTOR_SetSpeed(LEFT, slowSpeed);
-    MOTOR_SetSpeed(RIGHT, slowSpeed);
-
-    FindLine(&firstSensor, &secondSensor);
+    MOTOR_SetSpeed(LEFT, speed);
+    MOTOR_SetSpeed(RIGHT, speed);
 
     while(IsOnALine())
     {
-        lineErrorLeft = analogRead(firstSensor - 1) / analogRead(firstSensor);
-        lineErrorRight = analogRead(secondSensor + 1) / analogRead(secondSensor);
+        avgLeftProp = ((4 * analogRead(A7)) + (2 * analogRead(A6)) + (1 * analogRead(A5))) / 3;
+        avgRightProp = ((1 * analogRead(A2)) + (2 * analogRead(A1)) + (4 * analogRead(A0))) / 3;
+        avgLeft = (analogRead(A7) + analogRead(A6) + analogRead(A5)) / 3;
+        avgRight = (analogRead(A2) + analogRead(A1) + analogRead(A0)) / 3;
+        avgErrorLeft = (avgRightProp - avgLeftProp) / (avgLeft + avgRight);
+        avgErrorRight = (avgLeftProp - avgRightProp) / (avgLeft + avgRight);
 
-        masterSpeed = speed;
-        slaveSpeed = masterSpeed + (lineErrorRight * kLine) - (lineErrorLeft * kLine);
-        
-        MOTOR_SetSpeed(LEFT, speedSign * slaveSpeed);
-        MOTOR_SetSpeed(RIGHT, speedSign * masterSpeed);
-        //delay(40);
+        speedLeft = speed + (kLine * avgErrorLeft);
+        speedRight = speed + (kLine * avgErrorRight);
+
+        MOTOR_SetSpeed(LEFT, speedSign * speedLeft);
+        MOTOR_SetSpeed(RIGHT, speedSign * speedRight);
+        //delay(10);
     }
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
@@ -271,7 +247,7 @@ void Turn(float angle)
     int motor = angle > 0 ? RIGHT : LEFT;
     int totalPulses = 0;
     float pulsesRotation = DistanceToPulses(abs(radius * angle));
-
+    
     ENCODER_Reset(motor);
     MOTOR_SetSpeed(motor, 0.4);
     while(totalPulses < pulsesRotation)
@@ -301,7 +277,7 @@ void TestLineTrackerValues()
 
 void TestLineTrackerMove()
 {
-    FollowLine(0.2);
+    FollowLine(0.4);
 }
 
 /* ****************************************************************************
@@ -328,6 +304,7 @@ void loop()
     {
         delay(1000);
         TestLineTrackerMove();
+        //TestLineTrackerValues();
     }
     // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
