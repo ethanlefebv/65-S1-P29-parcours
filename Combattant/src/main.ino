@@ -13,6 +13,8 @@ Inclure les librairies de functions que vous voulez utiliser
 #include <Arduino.h>
 #include <LibRobus.h> // Essentielle pour utiliser RobUS
 #include <math.h>
+#include <Adafruit_TCS34725.h>
+#include <string.h>
 
 
 /* ****************************************************************************
@@ -23,6 +25,10 @@ Variables globales et defines
 const float WHEEL_CIRCUMFERENCE = 23.94;
 const int PULSES_PER_CYCLE = 3200;
 const float BASE_SPEED = 0.8;
+const String COULEUR1 = "Rouge";
+const String COULEUR2 = "Bleu";
+
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
 
 /* ****************************************************************************
 Vos propres fonctions sont creees ici
@@ -127,7 +133,8 @@ void Test()
 {
     //do some tests
     Serial.print("values : ");
-    Serial.print(analogRead(A0)); Serial.print("\t");
+    senseurcouleur();
+    /*Serial.print(analogRead(A0)); Serial.print("\t");
     Serial.print(analogRead(A1)); Serial.print("\t");
     Serial.print(analogRead(A2)); Serial.print("\t");
     Serial.print(analogRead(A3)); Serial.print("\t");
@@ -135,7 +142,8 @@ void Test()
     Serial.print(analogRead(A5)); Serial.print("\t");
     Serial.print(analogRead(A6)); Serial.print("\t");
     Serial.print(analogRead(A7)); Serial.print("\n");
-    Serial.println();
+    Serial.println();*/
+    
 }
 
 /* ****************************************************************************
@@ -148,6 +156,17 @@ Fonctions d'initialisation (setup)
 void setup()
 {
     BoardInit();
+
+    //color sensor setup
+    Serial.println("Color View Test!");
+
+    if (tcs.begin())
+        Serial.println("Found sensor");
+    else
+    {
+        Serial.println("No TCS34725 found ... check your connections");
+        while (1); // halt!
+    }
 }
 
 
@@ -166,3 +185,572 @@ void loop()
     // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Test function for color sensor. In test, it should print the color read in RGB, in temperature and in Lux.
+void senseurcouleur()
+{
+    uint16_t r = 0, g = 0, b = 0, c = 0, colorTemp = 0, Lux = 0;
+    tcs.setInterrupt(false); //turns on LED
+    delay(60);
+    tcs.getRawData(&r, &g, &b, &c);
+    tcs.setInterrupt(true); //turns off LED
+    Serial.print("C: "); Serial.print(c);
+    Serial.print("\tR: "); Serial.print(r);
+    Serial.print("\tG: "); Serial.print(g);
+    Serial.print("\tB: "); Serial.print(b);
+    colorTemp = tcs.calculateColorTemperature(r, g, b);
+    Lux = tcs.calculateLux(r, g, b);
+    Serial.print("\ncolorTemp: "); Serial.print(colorTemp);
+    Serial.print("\nLux: "); Serial.print(Lux);
+    Serial.print("\n");
+
+}
+
+//assigns color to the word defining the color 
+/*String assigncolcapt()
+{
+
+}
+
+//indicates with a boolean if the goal sensed is the good goal
+bool bonbut(String couleurcapt)
+{
+    bool actioncoul;
+    if (couleurcapt = COULEUR1)
+    {
+        actioncoul = true;
+    }
+    else
+    {
+        actioncoul = false;
+    }
+    return actioncoul;
+}*/
