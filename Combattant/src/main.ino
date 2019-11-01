@@ -133,7 +133,7 @@ void Test()
 {
     //do some tests
     Serial.print("values : ");
-    senseurcouleur();
+    ReadSensorColor();
     /*Serial.print(analogRead(A0)); Serial.print("\t");
     Serial.print(analogRead(A1)); Serial.print("\t");
     Serial.print(analogRead(A2)); Serial.print("\t");
@@ -713,16 +713,42 @@ void loop()
 
 
 
+//assigns color to the word defining the color 
+String AssignWordColor(uint16_t tabrgb[3])
+{
+    String couleurcapt;
+    if((tabrgb[1] > tabrgb[2]) && (tabrgb[1] > tabrgb[3]))
+    {
+        couleurcapt = "Rouge";
+    }
+    else if((tabrgb[2] > tabrgb[1]) && (tabrgb[2] > tabrgb[3]))
+    {
+        couleurcapt = "Vert";
+    }
+    else if((tabrgb[3] > tabrgb[1]) && (tabrgb[3] > tabrgb[2]))
+    {
+        couleurcapt = "Bleu";
+    }
+    else
+    {
+        couleurcapt = "Jaune";
+    }
+    return couleurcapt;
+}
 
-//Test function for color sensor. In test, it should print the color read in RGB, in temperature and in Lux.
-void senseurcouleur()
+//Reads color from sensor and returns it in RGB values.
+String ReadSensorColor()
 {
     uint16_t r = 0, g = 0, b = 0, c = 0, colorTemp = 0, Lux = 0;
+    uint16_t tabrgb[3] = {0,0,0};
     tcs.setInterrupt(false); //turns on LED
     delay(60);
     tcs.getRawData(&r, &g, &b, &c);
     tcs.setInterrupt(true); //turns off LED
-    Serial.print("C: "); Serial.print(c);
+    tabrgb[1] = r;
+    tabrgb[2] = g;
+    tabrgb[3] = b;
+    /*Serial.print("C: "); Serial.print(c);
     Serial.print("\tR: "); Serial.print(r);
     Serial.print("\tG: "); Serial.print(g);
     Serial.print("\tB: "); Serial.print(b);
@@ -730,27 +756,15 @@ void senseurcouleur()
     Lux = tcs.calculateLux(r, g, b);
     Serial.print("\ncolorTemp: "); Serial.print(colorTemp);
     Serial.print("\nLux: "); Serial.print(Lux);
-    Serial.print("\n");
-
-}
-
-//assigns color to the word defining the color 
-/*String assigncolcapt()
-{
-
+    Serial.print("\n");*/
+    return AssignWordColor(tabrgb);
 }
 
 //indicates with a boolean if the goal sensed is the good goal
-bool bonbut(String couleurcapt)
+bool BonBut(/*String couleurCapt*/)
 {
-    bool actioncoul;
-    if (couleurcapt = COULEUR1)
-    {
-        actioncoul = true;
-    }
-    else
-    {
-        actioncoul = false;
-    }
-    return actioncoul;
-}*/
+    return ReadSensorColor() = COULEUR1;
+}
+
+//logique sonar1: détecter la balle dans le but et se réaligner si le robot dévie
+//logique sonar2: détecter la balle dans le milieu
