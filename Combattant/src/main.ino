@@ -160,9 +160,203 @@ void loop()
 {
     if(ROBUS_IsBumper(REAR))
     {
+        SERVO_Enable(1);
         delay(1000);
-        Test();
+        Trap(true);
     }
+    if(ROBUS_IsBumper(FRONT))
+    {
+        SERVO_Enable(1);
+        delay(1000);
+        Trap(false);
+    }
+
     // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+///Trap the ball in the claw
+///grip: 0 release, 1 grip
+///     Will return a bool value if the ball is successfully seized
+bool Trap(bool grip)
+{
+    bool ballCaptured = false;
+    //SERVO_Enable(1);
+    if (grip)
+    {
+        //Move(10, 0.3, 0);
+        //delay(100);
+        SERVO_SetAngle(1, 0);
+        //ballCaptured = ROBUS_IsBumper(FRONT);
+    }
+    else 
+    {
+        SERVO_SetAngle(1, 180);
+    }
+    SERVO_Disable(1);
+    return ballCaptured;
 }
