@@ -716,24 +716,24 @@ void loop()
 //assigns color to the word defining the color 
 String AssignWordColor(uint16_t tabrgb[3])
 {
-    String couleurcapt;
+    String couleurCapt;
     if((tabrgb[1] > tabrgb[2]) && (tabrgb[1] > tabrgb[3]))
     {
-        couleurcapt = "Rouge";
+        couleurCapt = "Rouge";
     }
     else if((tabrgb[2] > tabrgb[1]) && (tabrgb[2] > tabrgb[3]))
     {
-        couleurcapt = "Vert";
+        couleurCapt = "Vert";
     }
     else if((tabrgb[3] > tabrgb[1]) && (tabrgb[3] > tabrgb[2]))
     {
-        couleurcapt = "Bleu";
+        couleurCapt = "Bleu";
     }
     else
     {
-        couleurcapt = "Jaune";
+        couleurCapt = "Jaune";
     }
-    return couleurcapt;
+    return couleurCapt;
 }
 
 //Reads color from sensor and returns it in RGB values.
@@ -766,5 +766,8 @@ bool BonBut(/*String couleurCapt*/)
     return ReadSensorColor() = COULEUR1;
 }
 
-//logique sonar1: détecter la balle dans le but et se réaligner si le robot dévie
-//logique sonar2: détecter la balle dans le milieu
+//Uses the sonar to find the ball and to align the middle of the robot with the middle of the ball
+/*void SonarBall()
+{
+    float distance = SONAR_GetRange(0);
+}*/
