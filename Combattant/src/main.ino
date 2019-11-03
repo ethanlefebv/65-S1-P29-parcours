@@ -118,7 +118,7 @@ void Turn(float angle)
     float pulsesRotation = DistanceToPulses(abs(radius * angle));
 
     ENCODER_Reset(motor);
-    MOTOR_SetSpeed(motor, 0.4);
+    MOTOR_SetSpeed(motor, 0.2);
     while(totalPulses < pulsesRotation)
     {
         totalPulses = ENCODER_Read(motor);
@@ -132,9 +132,11 @@ void Turn(float angle)
 void Test()
 {
     //do some tests
-    Serial.print("values : ");
+    //Serial.print("values : ");
     //ReadSensorColor();
-    Serial.print(SONAR_GetRange(1));
+    //Serial.print(SONAR_GetRange(1));
+    //Serial.print("\n");
+    SonarBall();
     /*Serial.print(analogRead(A0)); Serial.print("\t");
     Serial.print(analogRead(A1)); Serial.print("\t");
     Serial.print(analogRead(A2)); Serial.print("\t");
@@ -771,22 +773,24 @@ bool BonBut(/*String couleurCapt*/)
 void SonarBall()
 {
     float distance1 = 0, distance2 = 0, angleBalai1 = 0, angleBalai2 = 0, angleMilieu = 0, distanceBallon = 0;
-    while(distance2 <= distance1)
+    while(abs(distance2-distance1) <= 5 && distance1 < 100 && distance2 < 100)
     {
         distance1 = SONAR_GetRange(1);
         delay(100);
-        Turn(0.02);
+        Turn(PI/64);
         distance2 = SONAR_GetRange(1);
-        angleBalai1 += 0.02;
+        angleBalai1 += PI/64;
     }
     Turn(-angleBalai1);
-    while(distance2 <= distance1)
+    distance1 = 0;
+    distance2 = 0;
+    while(abs(distance2-distance1) <= 5 && distance1 < 100 && distance2 < 100)
     {
         distance1 = SONAR_GetRange(1);
         delay(100);
-        Turn(-0.02);
+        Turn(-PI/64);
         distance2 = SONAR_GetRange(1);
-        angleBalai2 += 0.02;
+        angleBalai2 += PI/64;
     }
     angleMilieu = (angleBalai1 + angleBalai2)/2;
     Turn(angleMilieu);
