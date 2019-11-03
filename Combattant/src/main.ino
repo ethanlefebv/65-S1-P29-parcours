@@ -133,7 +133,8 @@ void Test()
 {
     //do some tests
     Serial.print("values : ");
-    ReadSensorColor();
+    //ReadSensorColor();
+    Serial.print(SONAR_GetRange(1));
     /*Serial.print(analogRead(A0)); Serial.print("\t");
     Serial.print(analogRead(A1)); Serial.print("\t");
     Serial.print(analogRead(A2)); Serial.print("\t");
@@ -766,8 +767,35 @@ bool BonBut(/*String couleurCapt*/)
     return ReadSensorColor() = COULEUR1;
 }
 
-//Uses the sonar to find the ball and to align the middle of the robot with the middle of the ball
-/*void SonarBall()
+//Uses the sonar to find the ball, align the middle of the robot with the middle of the ball and get the ball
+void SonarBall()
 {
-    float distance = SONAR_GetRange(0);
-}*/
+    float distance1 = 0, distance2 = 0, angleBalai1 = 0, angleBalai2 = 0, angleMilieu = 0, distanceBallon = 0;
+    while(distance2 <= distance1)
+    {
+        distance1 = SONAR_GetRange(1);
+        delay(100);
+        Turn(0.02);
+        distance2 = SONAR_GetRange(1);
+        angleBalai1 += 0.02;
+    }
+    Turn(-angleBalai1);
+    while(distance2 <= distance1)
+    {
+        distance1 = SONAR_GetRange(1);
+        delay(100);
+        Turn(-0.02);
+        distance2 = SONAR_GetRange(1);
+        angleBalai2 += 0.02;
+    }
+    angleMilieu = (angleBalai1 + angleBalai2)/2;
+    Turn(angleMilieu);
+    distanceBallon = SONAR_GetRange(1);
+    Move(distanceBallon, 0.3);
+    /*while(ROBUS_IsBumper(FRONT) == false) //décommenter pour tests
+    {
+        distanceBallon = SONAR_GetRange(1);
+        delay(100);
+        Move(distanceBallon, 0.3);
+    }*/
+}
