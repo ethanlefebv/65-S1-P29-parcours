@@ -15,6 +15,7 @@ Inclure les librairies de functions que vous voulez utiliser
 #include <math.h>
 #include <Adafruit_TCS34725.h>
 #include <string.h>
+#include <SharpIR.h>
 
 
 /* ****************************************************************************
@@ -29,6 +30,7 @@ const String COULEUR1 = "Rouge";
 const String COULEUR2 = "Bleu";
 
 Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
+SharpIR sharp(2, 1080);
 
 /* ****************************************************************************
 Vos propres fonctions sont creees ici
@@ -133,10 +135,10 @@ void Test()
 {
     //do some tests
     //Serial.print("values : ");
-    //ReadSensorColor();
-    //Serial.print(SONAR_GetRange(1));
-    //Serial.print("\n");
-    SonarBall();
+    IRBall();
+    /*int dist = sharp.distance();
+    Serial.print(dist);
+    Serial.print("\n");*/
     /*Serial.print(analogRead(A0)); Serial.print("\t");
     Serial.print(analogRead(A1)); Serial.print("\t");
     Serial.print(analogRead(A2)); Serial.print("\t");
@@ -162,14 +164,13 @@ void setup()
 
     //color sensor setup
     Serial.println("Color View Test!");
-
+    /*
     if (tcs.begin())
         Serial.println("Found sensor");
     else
     {
         Serial.println("No TCS34725 found ... check your connections");
-        while (1); // halt!
-    }
+    }*/
 }
 
 
@@ -773,7 +774,7 @@ bool BonBut(/*String couleurCapt*/)
 void SonarBall()
 {
     float distance1 = 0, distance2 = 0, angleBalai1 = 0, angleBalai2 = 0, angleMilieu = 0, distanceBallon = 0;
-    while(abs(distance2-distance1) <= 5 && distance1 < 100 && distance2 < 100)
+    while(abs(distance2-distance1) <= 5)
     {
         distance1 = SONAR_GetRange(1);
         delay(100);
@@ -784,7 +785,7 @@ void SonarBall()
     Turn(-angleBalai1);
     distance1 = 0;
     distance2 = 0;
-    while(abs(distance2-distance1) <= 5 && distance1 < 100 && distance2 < 100)
+    while(abs(distance2-distance1) <= 5)
     {
         distance1 = SONAR_GetRange(1);
         delay(100);
@@ -796,10 +797,32 @@ void SonarBall()
     Turn(angleMilieu);
     distanceBallon = SONAR_GetRange(1);
     Move(distanceBallon, 0.3);
-    /*while(ROBUS_IsBumper(FRONT) == false) //décommenter pour tests
+}
+
+void IRBall()
+{
+   float distance1 = 10, distance2 = 10, angleBalai1 = 0, angleBalai2 = 0, angleMilieu = 0, distanceBallon = 10;
+    do //while(abs(distance2-distance1) <= 5) //&& distance1 <= 80 && distance2 <= 80 && distance1 >= 10 && distance2 >= 10)
     {
-        distanceBallon = SONAR_GetRange(1);
-        delay(100);
-        Move(distanceBallon, 0.3);
-    }*/
+        distance1 = sharp.distance(); //SONAR_GetRange(1);
+        //delay(100);
+        Turn(PI/16);
+        distance2 = sharp.distance(); //SONAR_GetRange(1);
+        angleBalai1 += PI/16;
+    }while(abs(distance2-distance1) <= 5);
+    Turn(-angleBalai1);
+    distance1 = 10;
+    distance2 = 10;
+    do //while(abs(distance2-distance1) <= 5) //&& distance1 <= 80 && distance2 <= 80 && distance1 >= 10 && distance2 >= 10)
+    {
+        distance1 = sharp.distance(); //SONAR_GetRange(1);
+        //delay(100);
+        Turn(-PI/16);
+        distance2 = sharp.distance(); //SONAR_GetRange(1);
+        angleBalai2 += PI/16;
+    }while(abs(distance2-distance1) <= 5);
+    angleMilieu = (angleBalai1 + angleBalai2)/2;
+    Turn(angleMilieu);
+    distanceBallon = sharp.distance(); //SONAR_GetRange(1);
+    Move(distanceBallon, 0.3); 
 }
