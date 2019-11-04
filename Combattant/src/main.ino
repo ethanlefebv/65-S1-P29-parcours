@@ -24,6 +24,8 @@ const float WHEEL_CIRCUMFERENCE = 23.94;
 const int PULSES_PER_CYCLE = 3200;
 const float BASE_SPEED = 0.8;
 
+enum class Color { Green, Red, Yellow, Blue};
+
 /* ****************************************************************************
 Vos propres fonctions sont creees ici
 **************************************************************************** */
@@ -44,6 +46,23 @@ bool IsOnALine()
         isOnALine = analogRead(i) > 600;
     }
     return isOnALine;
+}
+
+void LineTrackerCalculateSpeed(float baseSpeed, float* speedLeft, float* speedRight, float kLine)
+{
+    float avgLeft = 0, avgRight = 0,
+          avgLeftProp = 0, avgRightProp = 0, //proportional, the errors on the extremes are amplified
+          avgErrorLeft = 0, avgErrorRight = 0;
+
+    avgLeftProp = ((4 * analogRead(A7)) + (2 * analogRead(A6)) + (1 * analogRead(A5))) / 3;
+    avgRightProp = ((1 * analogRead(A2)) + (2 * analogRead(A1)) + (4 * analogRead(A0))) / 3;
+    avgLeft = (analogRead(A7) + analogRead(A6) + analogRead(A5)) / 3;
+    avgRight = (analogRead(A2) + analogRead(A1) + analogRead(A0)) / 3;
+    avgErrorLeft = (avgRightProp - avgLeftProp) / (avgLeft + avgRight);
+    avgErrorRight = (avgLeftProp - avgRightProp) / (avgLeft + avgRight);
+
+    *speedLeft = baseSpeed + (kLine * avgErrorLeft);
+    *speedRight = baseSpeed + (kLine * avgErrorRight);
 }
 
 ///Function to move ROBUS in a straight line.
@@ -119,96 +138,51 @@ void PID(float speed, int pulses, bool useLineTracker)
 }
 
 ///Function to make ROBUS follow a line.
-///speed : The base speed.
+///speed : The base speed, needs to be positive.
 ///pulses : The distance to travel in pulses. Should always be positive.
 void LineTracker(float speed, int pulses)
 {
-    int totalPulsesLeft = 0, totalPulsesRight = 0,
-        firstSensor = 0, secondSensor = 0;
-    float lineErrorLeft = 0, lineErrorRight = 0;
+    int avgPulses = 0;
+    const float kLine = 0.4;
+    float speedLeft = 0, speedRight = 0;
+    speed = fabs(speed); //just in case the provided speed is negative
 
-    const float kLine = 0.05;
-    
-    //the number of pulses ROBUS will accelerate/decelerate
-    float pulsesAcceleration = 1/10.0 * pulses;
-
-    float masterSpeed = 0, slaveSpeed = 0, slowSpeed = 0.2;
-    int speedSign = speed > 0 ? 1 : -1;
-    speed *= speedSign; //we'll convert it back to the negative value (if that's the case) at the end
     ENCODER_Reset(LEFT);
     ENCODER_Reset(RIGHT);
+    MOTOR_SetSpeed(LEFT, speed);
+    MOTOR_SetSpeed(RIGHT, speed);
 
-    //we give it a slow speed to start
-    MOTOR_SetSpeed(LEFT, slowSpeed);
-    MOTOR_SetSpeed(RIGHT, slowSpeed);
-
-    //FindLine(&firstSensor, &secondSensor);
-
-    while(totalPulsesRight < pulses)
+    while(avgPulses < pulses)
     {
-        totalPulsesLeft += abs(ENCODER_ReadReset(LEFT));
-        totalPulsesRight += abs(ENCODER_ReadReset(RIGHT));
+        //this is not very accurate but still works a bit
+        avgPulses += (abs(ENCODER_ReadReset(LEFT)) + abs(ENCODER_ReadReset(RIGHT))) / 2;
 
-        lineErrorLeft = analogRead(firstSensor - 1) / analogRead(firstSensor);
-        lineErrorRight = analogRead(secondSensor + 1) / analogRead(secondSensor);
+        LineTrackerCalculateSpeed(speed, &speedLeft, &speedRight, kLine);
 
-        if(totalPulsesRight < pulsesAcceleration)
-        {
-            masterSpeed = slowSpeed + (totalPulsesRight / pulsesAcceleration * (speed - slowSpeed));
-        }
-        else if(totalPulsesRight > pulses - pulsesAcceleration)
-        {
-            masterSpeed = slowSpeed + ((pulses - totalPulsesRight) / pulsesAcceleration * (speed - slowSpeed));
-        }
-        else //not accelerating nor decelerating
-        {
-            masterSpeed = speed;
-        }
-        slaveSpeed = masterSpeed + (lineErrorRight * kLine) - (lineErrorLeft * kLine);
-        
-        MOTOR_SetSpeed(LEFT, speedSign * slaveSpeed);
-        MOTOR_SetSpeed(RIGHT, speedSign * masterSpeed);
-        //delay(40);
+        MOTOR_SetSpeed(LEFT, speedLeft);
+        MOTOR_SetSpeed(RIGHT, speedRight);
     }
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
 }
 
 ///Function to make ROBUS follow a line.
-///speed : The base speed.
+///speed : The base speed, needs to be positive.
 void LineTracker(float speed)
 {
-    float avgLeft = 0, avgRight = 0,
-        avgLeftProp = 0, avgRightProp = 0,
-        avgErrorLeft = 0, avgErrorRight = 0;
-
     const float kLine = 0.4;
-    
-    float speedLeft = 0, speedRight = 0, slowSpeed = 0.2;
-    int speedSign = speed > 0 ? 1 : -1;
-    speed *= speedSign; //we'll convert it back to the negative value (if that's the case) at the end
-    ENCODER_Reset(LEFT);
-    ENCODER_Reset(RIGHT);
+    speed = fabs(speed); //just in case the provided speed is negative
+    float speedLeft = speed, speedRight = speed;
 
-    //we give it a slow speed to start
-    MOTOR_SetSpeed(LEFT, speed);
-    MOTOR_SetSpeed(RIGHT, speed);
+    MOTOR_SetSpeed(LEFT, speedLeft);
+    MOTOR_SetSpeed(RIGHT, speedRight);
 
     while(IsOnALine())
     {
-        avgLeftProp = ((4 * analogRead(A7)) + (2 * analogRead(A6)) + (1 * analogRead(A5))) / 3;
-        avgRightProp = ((1 * analogRead(A2)) + (2 * analogRead(A1)) + (4 * analogRead(A0))) / 3;
-        avgLeft = (analogRead(A7) + analogRead(A6) + analogRead(A5)) / 3;
-        avgRight = (analogRead(A2) + analogRead(A1) + analogRead(A0)) / 3;
-        avgErrorLeft = (avgRightProp - avgLeftProp) / (avgLeft + avgRight);
-        avgErrorRight = (avgLeftProp - avgRightProp) / (avgLeft + avgRight);
+        LineTrackerCalculateSpeed(speed, &speedLeft, &speedRight, kLine);
 
-        speedLeft = speed + (kLine * avgErrorLeft);
-        speedRight = speed + (kLine * avgErrorRight);
-
-        MOTOR_SetSpeed(LEFT, speedSign * speedLeft);
-        MOTOR_SetSpeed(RIGHT, speedSign * speedRight);
-        //delay(10);
+        MOTOR_SetSpeed(LEFT, speedLeft);
+        MOTOR_SetSpeed(RIGHT, speedRight);
     }
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
@@ -216,22 +190,27 @@ void LineTracker(float speed)
 
 ///Move ROBUS according to the distance specified.
 ///distance : The distance to cover in centimeters. Can be negative.
-///speed : The base speed. Must be between 0.15 and 1 for it to work.
+///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
 ///useLineTracker : Enables/disables the line tracking feature.
 void Move(float distance, float speed, bool useLineTracker)
 {
     int distanceSign = distance > 0 ? 1 : -1;
     //distanceSign is used to reverse the speed if the distance is negative
-    PID(distanceSign * speed, DistanceToPulses(abs(distance)), useLineTracker);
+    PID(distanceSign * speed, DistanceToPulses(fabs(distance)), useLineTracker);
 }
 
+///Make ROBUS follow a line for a certain distance.
+///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
+///distance : The distance to cover in centimeters. Must be positive for now.
 void FollowLine(float speed, float distance)
 {
     int distanceSign = distance > 0 ? 1 : -1;
     //distanceSign is used to reverse the speed if the distance is negative
-    LineTracker(distanceSign * speed, DistanceToPulses(abs(distance)));
+    LineTracker(/*distanceSign * */speed, DistanceToPulses(fabs(distance)));
 }
 
+///Move ROBUS according to the distance specified.
+///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
 void FollowLine(float speed)
 {
     LineTracker(speed);
@@ -242,20 +221,85 @@ void FollowLine(float speed)
 ///        while negative makes it go right.
 void Turn(float angle)
 {
-    //only one wheel will move
-    float radius = 19.33; //in centimeters
-    int motor = angle > 0 ? RIGHT : LEFT;
-    int totalPulses = 0;
-    float pulsesRotation = DistanceToPulses(abs(radius * angle));
+    //both wheels will move
+    int totalPulsesLeft = 0, totalPulsesRight = 0,
+        deltaPulsesLeft = 0, deltaPulsesRight = 0,
+        errorDelta = 0, errorTotal = 0;
     
-    ENCODER_Reset(motor);
-    MOTOR_SetSpeed(motor, 0.4);
-    while(totalPulses < pulsesRotation)
+    float radius = 19.33 / 2; //in centimeters
+    float baseSpeed = 0.2, correctedSpeed = 0;
+    const float kp = 0.0001, ki = 0.0005;
+
+    int motorLeftSign = angle > 0 ? -1 : 1;
+    float pulsesRotation = DistanceToPulses(fabs(radius * angle));
+    
+    ENCODER_Reset(LEFT);
+    ENCODER_Reset(RIGHT);
+    MOTOR_SetSpeed(LEFT, motorLeftSign * baseSpeed);
+    MOTOR_SetSpeed(RIGHT, -1 * motorLeftSign * baseSpeed);
+    while(totalPulsesLeft < pulsesRotation)
     {
-        totalPulses = ENCODER_Read(motor);
-        delay(20); //might not be necessary
+        //deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
+        //deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
+        totalPulsesLeft = abs(ENCODER_Read(LEFT)); //+= deltaPulsesLeft;
+        totalPulsesRight = abs(ENCODER_Read(RIGHT)); //+= deltaPulsesRight;
+
+        //errorDelta = deltaPulsesRight - deltaPulsesLeft;
+        errorTotal = totalPulsesRight - totalPulsesLeft;
+
+        correctedSpeed = baseSpeed /*+ (errorDelta * kp)*/ + (errorTotal * ki);
+
+        MOTOR_SetSpeed(LEFT, motorLeftSign * correctedSpeed);
     }
-    MOTOR_SetSpeed(motor, 0);    
+    MOTOR_SetSpeed(LEFT, 0);
+    MOTOR_SetSpeed(RIGHT, 0);
+}
+
+///Main program for the combattant challenge, robot A.
+///colorZone : The color of the zone the robot has to pick up the ball.
+void CombattantA(Color colorZone)
+{
+    //start a timer so that the robot stops everything after a minute
+
+    //move to the middle of the arena
+    Move(35, 0.4, false); //will probably need to change the distance
+
+    //rotate to face the right color
+    //either do a switch-case or some math magic using the color's associated number
+
+    //follow the line until the zone is reached
+
+    //move forward a bit
+
+    //grip the ball using the motorized arm
+
+    //move backwards a bit
+
+    //180 turn
+
+    //maybe go forward a bit, then follow line until reached the center
+
+    //let go of the ball
+
+    //move out of the way then stop
+
+}
+
+///Main program for the combattant challenge, robot B.
+///colorZone : The color of the zone the robot has to drop/push the ball.
+void CombattantB(Color colorZone)
+{
+    //wait a minute before starting
+
+    //start a timer so that the robot stops everything after a minute
+
+    //move forward a bit to be able to grip the ball in the center
+
+    //find the ball, then grab it
+
+    //rotate to face the right color
+
+    //push the ball in the zone
 }
 
 //----------------
@@ -303,9 +347,10 @@ void loop()
     if(ROBUS_IsBumper(REAR))
     {
         delay(1000);
-        TestLineTrackerMove();
+        //TestLineTrackerMove();
+        Turn(-PI/4);
         //TestLineTrackerValues();
     }
-    // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+    SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
 }
