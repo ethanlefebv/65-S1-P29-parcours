@@ -209,7 +209,7 @@ void FollowLine(float speed, float distance)
     LineTracker(/*distanceSign * */speed, DistanceToPulses(fabs(distance)));
 }
 
-///Move ROBUS according to the distance specified.
+///Make ROBUS follow a line until it leaves the line.
 ///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
 void FollowLine(float speed)
 {
@@ -255,9 +255,29 @@ void Turn(float angle)
     MOTOR_SetSpeed(RIGHT, 0);
 }
 
+void Grip()
+{
+    delay(500);
+    SERVO_SetAngle(0, 85);
+    delay(500);
+}
+
+void Loosen()
+{
+    SERVO_SetAngle(0, 100);
+}
+
+void Release()
+{
+    delay(500);
+    SERVO_SetAngle(0, 135);
+    delay(500);
+}
+
 ///Main program for the combattant challenge, robot A.
-///colorZone : The color of the zone the robot has to pick up the ball.
-void CombattantA(Color colorZone) //we could also include the color of the zone of robot B
+///colorZoneA : The color of the zone the robot has to pick up the ball.
+///colorZoneB : The color of the zone robot B has to push the ball to.
+void CombattantA(Color colorZoneA, Color colorZoneB)
 {
     //start a timer so that the robot stops everything after a minute
     /* turns out it doesn't do shit yet
@@ -269,9 +289,8 @@ void CombattantA(Color colorZone) //we could also include the color of the zone 
     Move(39, 0.2); //will probably need to change the distance
 
     //rotate to face the right color
-    //either do a switch-case or some math magic using the color's associated number
     float angle = 0;
-    switch (colorZone)
+    switch (colorZoneA)
     {
         case Color::Green:
             angle = -PI/4;
@@ -292,28 +311,36 @@ void CombattantA(Color colorZone) //we could also include the color of the zone 
     FollowLine(0.4);
 
     //move forward a bit
-    Move(25, 0.5);
+    Move(33, 0.4);
 
     //grip the ball using the motorized arm
-    delay(1000);
+    Grip();
 
     //180 turn
     Move(-10, 0.4);
+    delay(250);
     Turn(PI);
 
     //maybe go forward a bit, then follow line until reached the center
     Move(10, 0.4); //ROBUS should now be back on the line
+    Loosen();
     FollowLine(0.4, 70);
 
     //let go of the ball
-    delay(1000);
+    Release();
 
-    //move out of the way then stop
-    //it could go and hide one one of the walls
-    //or some zone that we know the other robot won't have to push the ball to
-    Move(-55, 0.4);
-    Turn(-angle); //we need to change that angle
-    Move(35, 0.4); //we'll need to change that too
+    //move out of the way
+    if(colorZoneA != colorZoneB) //it'll back up to the zone where it picked up the ball
+    {
+        Move(-95, 0.4);
+    }
+    else
+    {
+        Move(-60, 0.4);
+        Turn(PI/2);
+        Move(55, 0.4); //it goes to a near wall
+    }
+    //Robot A's purpose is now complete
 }
 
 ///Main program for the combattant challenge, robot B.
@@ -338,7 +365,7 @@ void CombattantB(Color colorZone)
     //push the ball in the zone
 }
 
-//----------------
+//---------------- TESTS ----------------
 
 void TestLineTrackerValues()
 {
@@ -360,7 +387,6 @@ void Tests()
     //timeAtStart = millis();
     //SOFT_TIMER_Enable(0);
     
-    Turn(2*PI);
 }
 
 /* ****************************************************************************
@@ -376,6 +402,9 @@ void setup()
     timeAtStart = 0;
     SOFT_TIMER_SetCallback(0, &TimeBomb);
     SOFT_TIMER_SetDelay(0, 500);
+
+    SERVO_Enable(0);
+    Release();
 }
 
 
@@ -386,11 +415,14 @@ Fonctions de boucle infini (loop())
 
 void loop()
 {
+    //SERVO_SetAngle(1,0);
+
     if(ROBUS_IsBumper(REAR))
     {
         delay(500);
         //Tests();
-        CombattantA(Color::Yellow); //uncomment either A or B, and change the color
+        
+        CombattantA(Color::Blue, Color::Yellow); //uncomment either A or B, and change the colors
         //CombattantB(Color::);
     }
     SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
