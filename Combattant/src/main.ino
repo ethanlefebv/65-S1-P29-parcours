@@ -113,20 +113,38 @@ void Move(float distance, float speed)
 ///        while negative makes it go right.
 void Turn(float angle)
 {
-    //only one wheel will move
-    float radius = 19.33; //in centimeters
-    int motor = angle > 0 ? RIGHT : LEFT;
-    int totalPulses = 0;
-    float pulsesRotation = DistanceToPulses(abs(radius * angle));
+    //both wheels will move
+    int totalPulsesLeft = 0, totalPulsesRight = 0,
+        deltaPulsesLeft = 0, deltaPulsesRight = 0,
+        errorDelta = 0, errorTotal = 0;
+    
+    float radius = 19.33 / 2; //in centimeters
+    float baseSpeed = 0.2, correctedSpeed = 0;
+    const float kp = 0.0001, ki = 0.0005;
 
-    ENCODER_Reset(motor);
-    MOTOR_SetSpeed(motor, 0.2);
-    while(totalPulses < pulsesRotation)
+    int motorLeftSign = angle > 0 ? -1 : 1;
+    float pulsesRotation = DistanceToPulses(fabs(radius * angle));
+    
+    ENCODER_Reset(LEFT);
+    ENCODER_Reset(RIGHT);
+    MOTOR_SetSpeed(LEFT, motorLeftSign * baseSpeed);
+    MOTOR_SetSpeed(RIGHT, -1 * motorLeftSign * baseSpeed);
+    while(totalPulsesLeft < pulsesRotation)
     {
-        totalPulses = ENCODER_Read(motor);
-        delay(20); //might not be necessary
+        //deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
+        //deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
+        totalPulsesLeft = abs(ENCODER_Read(LEFT)); //+= deltaPulsesLeft;
+        totalPulsesRight = abs(ENCODER_Read(RIGHT)); //+= deltaPulsesRight;
+
+        //errorDelta = deltaPulsesRight - deltaPulsesLeft;
+        errorTotal = totalPulsesRight - totalPulsesLeft;
+
+        correctedSpeed = baseSpeed /*+ (errorDelta * kp)*/ + (errorTotal * ki);
+
+        MOTOR_SetSpeed(LEFT, motorLeftSign * correctedSpeed);
     }
-    MOTOR_SetSpeed(motor, 0);    
+    MOTOR_SetSpeed(LEFT, 0);
+    MOTOR_SetSpeed(RIGHT, 0);
 }
 
 //----------------
@@ -135,7 +153,8 @@ void Test()
 {
     //do some tests
     //Serial.print("values : ");
-    IRBall();
+    //IRBall();
+    AlignAlec();
     /*int dist = sharp.distance();
     Serial.print(dist);
     Serial.print("\n");*/
@@ -799,7 +818,7 @@ void SonarBall()
     Move(distanceBallon, 0.3);
 }
 
-void IRBall()
+void IRBallAlign()
 {
    float distance1 = 10, distance2 = 10, angleBalai1 = 0, angleBalai2 = 0, angleMilieu = 0, distanceBallon = 10;
     do //while(abs(distance2-distance1) <= 5) //&& distance1 <= 80 && distance2 <= 80 && distance1 >= 10 && distance2 >= 10)
@@ -826,3 +845,51 @@ void IRBall()
     distanceBallon = sharp.distance(); //SONAR_GetRange(1);
     Move(distanceBallon, 0.3); 
 }
+
+void AlignAlec()
+{
+    int i;
+    float tabDistance[16] = {200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200};
+    float tabAngle[16] = {PI/2, (15*PI)/32, (7*PI)/16, (13*PI)/32, (3*PI)/8, (11*PI)/32, (5*PI)/16, (9*PI)/32, PI/4, (7*PI)/32, (3*PI)/16, (5*PI)/32, PI/8, (3*PI)/32, PI/16, PI/32};
+    float plusPetit = tabDistance[0];
+    int plusPetitPosition = 0;
+    Turn(PI/4);
+    for(i = 0; i < 16; i++)
+    {
+        tabDistance[i] = sharp.distance();
+        delay(300);
+        if(tabDistance[i] < plusPetit)
+        {
+            plusPetit = tabDistance[i];
+            plusPetitPosition = i;
+        }
+        Turn(-PI/32);
+    }
+    Turn(tabAngle[plusPetitPosition]);
+    Move(40, 0.4);
+}
+//print durant fct pour voir ce qu'il voit
+
+/*float IRBallPO()
+{
+   float distance1, angleBalai1 = 0, angleMilieu = 0, distanceBallon;
+   bool foundBall = false;
+   Turn (-PI/4);
+    while (foundBall==false) //while(abs(distance2-distance1) <= 5) //&& distance1 <= 80 && distance2 <= 80 && distance1 >= 10 && distance2 >= 10)
+    {
+        distance1 = sharp.distance(); //sharp.distance();
+        while (distance1 <=60)
+        {
+            Turn(PI/32);
+            distance1 = sharp.distance();
+            angleBalai1 += PI/32;
+            foundBall = true;
+            delay(300);
+        }
+        Turn(PI/32);
+        delay(300);
+    }
+    angleMilieu = (-angleBalai1)/2;
+    Turn(-PI/32 + angleMilieu);
+    return angleMilieu;
+}*/
