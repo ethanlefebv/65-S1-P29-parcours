@@ -347,8 +347,8 @@ void CombattantA(Color colorZoneA, Color colorZoneB)
 ///colorZone : The color of the zone the robot has to drop/push the ball.
 void CombattantB(Color colorZone)
 {
-    //wait a minute before starting
-    delay(1000 * 60);
+    //wait a minute before starting, if necessary
+    //delay(1000 * 60);
 
     //start a timer so that the robot stops everything after a minute
     /*
@@ -363,6 +363,24 @@ void CombattantB(Color colorZone)
     //rotate to face the right color
 
     //push the ball in the zone
+
+    //----------OR----------
+
+    //go on the opposite line of the zone
+
+    //face the center
+
+    //move forward
+
+    //find the ball
+
+    //move forward to grip it
+
+    //rotate back to face the line
+
+    //follow the line
+
+    //release the ball
 }
 
 //---------------- TESTS ----------------
