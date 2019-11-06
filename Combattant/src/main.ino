@@ -30,7 +30,7 @@ const String COULEUR1 = "Rouge";
 const String COULEUR2 = "Bleu";
 
 Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
-SharpIR sharp(2, 1080);
+SharpIR sharp(0, 1080);
 
 /* ****************************************************************************
 Vos propres fonctions sont creees ici
@@ -735,7 +735,7 @@ void loop()
 
 
 
-
+/* NOT USED AT THE MOMENT
 //assigns color to the word defining the color 
 String AssignWordColor(uint16_t tabrgb[3])
 {
@@ -771,20 +771,20 @@ String ReadSensorColor()
     tabrgb[1] = r;
     tabrgb[2] = g;
     tabrgb[3] = b;
-    /*Serial.print("C: "); Serial.print(c);
-    Serial.print("\tR: "); Serial.print(r);
-    Serial.print("\tG: "); Serial.print(g);
-    Serial.print("\tB: "); Serial.print(b);
-    colorTemp = tcs.calculateColorTemperature(r, g, b);
-    Lux = tcs.calculateLux(r, g, b);
-    Serial.print("\ncolorTemp: "); Serial.print(colorTemp);
-    Serial.print("\nLux: "); Serial.print(Lux);
-    Serial.print("\n");*/
+    //Serial.print("C: "); Serial.print(c);
+    //Serial.print("\tR: "); Serial.print(r);
+    //Serial.print("\tG: "); Serial.print(g);
+    //Serial.print("\tB: "); Serial.print(b);
+    //colorTemp = tcs.calculateColorTemperature(r, g, b);
+    //Lux = tcs.calculateLux(r, g, b);
+    //Serial.print("\ncolorTemp: "); Serial.print(colorTemp);
+    //Serial.print("\nLux: "); Serial.print(Lux);
+    //Serial.print("\n");
     return AssignWordColor(tabrgb);
 }
 
 //indicates with a boolean if the goal sensed is the good goal
-bool BonBut(/*String couleurCapt*/)
+bool BonBut()//String couleurCapt)
 {
     return ReadSensorColor() = COULEUR1;
 }
@@ -844,29 +844,36 @@ void IRBallAlign()
     Turn(angleMilieu);
     distanceBallon = sharp.distance(); //SONAR_GetRange(1);
     Move(distanceBallon, 0.3); 
-}
+}*/
 
-void AlignAlec()
+///Scans from PI/4 to -PI/4 rads to find the ball, then turns to face it.
+///Returns the angle from the center.
+float AlignAlec()
 {
     int i;
     float tabDistance[16] = {200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200};
-    float tabAngle[16] = {PI/2, (15*PI)/32, (7*PI)/16, (13*PI)/32, (3*PI)/8, (11*PI)/32, (5*PI)/16, (9*PI)/32, PI/4, (7*PI)/32, (3*PI)/16, (5*PI)/32, PI/8, (3*PI)/32, PI/16, PI/32};
-    float plusPetit = tabDistance[0];
-    int plusPetitPosition = 0;
+    float tabAngle[16] = {PI/2, 15*PI/32, 14*PI/32, 13*PI/32, 12*PI/32, 11*PI/32, 10*PI/32, 9*PI/32, 8*PI/32, 7*PI/32, 6*PI/32, 5*PI/32, 4*PI/32, 3*PI/32, 2*PI/32, PI/32};
+    float smallestDistance = tabDistance[0];
+    int smallestDistancePos = 0;
     Turn(PI/4);
     for(i = 0; i < 16; i++)
     {
         tabDistance[i] = sharp.distance();
         delay(300);
-        if(tabDistance[i] < plusPetit)
+        if(tabDistance[i] == 8) //nothing gets reflected, i.e. the surface is too far away
         {
-            plusPetit = tabDistance[i];
-            plusPetitPosition = i;
+            tabDistance[i] = 200;
+        }
+        else if(tabDistance[i] < smallestDistance)
+        {
+            smallestDistance = tabDistance[i];
+            smallestDistancePos = i;
         }
         Turn(-PI/32);
     }
-    Turn(tabAngle[plusPetitPosition]);
-    Move(40, 0.4);
+    Turn(tabAngle[smallestDistancePos]);
+    return (-PI/4) + tabAngle[smallestDistancePos];
+    //Move(40, 0.4);
 }
 //print durant fct pour voir ce qu'il voit
 
