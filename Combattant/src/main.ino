@@ -258,7 +258,7 @@ void Turn(float angle)
 void Grip()
 {
     delay(500);
-    SERVO_SetAngle(0, 85);
+    SERVO_SetAngle(0, 82);
     delay(500);
 }
 
@@ -274,10 +274,102 @@ void Release()
     delay(500);
 }
 
+void MoveToLine(void)
+{
+    while(((analogRead(A7) + (analogRead(A0)) < 1000)))
+    {
+    MOTOR_SetSpeed(LEFT , 0.15);
+    MOTOR_SetSpeed(RIGHT , 0.15);
+    }
+    MOTOR_SetSpeed(LEFT , 0);
+    MOTOR_SetSpeed(RIGHT , 0);
+    delay(250);
+    while(analogRead(A0) < analogRead(A7))
+    {
+    MOTOR_SetSpeed(RIGHT , 0.1);
+     }
+     while(analogRead(A7) < analogRead(A0))
+    {
+    MOTOR_SetSpeed(LEFT , 0.1);
+     }
+    delay(250);
+    MOTOR_SetSpeed(LEFT , 0);
+    MOTOR_SetSpeed(RIGHT , 0);
+}
+
+void MoveToPosition(Color colorZoneB)
+{
+    if(colorZoneB == Color::Green) 
+    {
+        Move(-20, 0.4);
+        Turn(-PI/4);
+        delay(200);
+        Move(76 ,0.6);
+        delay(200);
+        Turn(PI/2);
+        delay(300);
+        MoveToLine();
+        delay(50);
+        Move(3,0.1);
+        delay(150);
+        Turn(PI/2);
+        delay(300);
+        SERVO_SetAngle(0, 100);
+        FollowLine(0.55);
+        Move(35, 0.5);
+    }
+    else if(colorZoneB == Color::Red) 
+    {
+        Move(-20, 0.4);
+        Turn(PI/4);
+        delay(200);
+        Move(76 ,0.6);
+        delay(300);
+        Turn(-PI/2);
+        delay(200);
+        MoveToLine();
+        delay(50);
+        Move(3,0.1);
+        delay(150);
+        Turn(-PI/2);
+        delay(300);
+        SERVO_SetAngle(0, 100);
+        FollowLine(0.55);
+        Move(35, 0.5);
+    }
+    else if(colorZoneB == Color::Blue) 
+    {
+        Move(-30, 0.4);
+        Turn(-PI/4);
+        MoveToLine();
+        delay(150);
+        Move(3,0.1);
+        delay(50);
+        Turn(PI/2);
+        delay(300);
+        SERVO_SetAngle(0, 100);
+        FollowLine(0.55);
+        Move(35, 0.5);
+    }
+    else if(colorZoneB == Color::Yellow) 
+    {
+        Move(-30, 0.4);
+        Turn(PI/4);
+        MoveToLine();
+        delay(150);
+        Move(3,0.1);
+        delay(50);
+        Turn(-PI/2);
+        delay(300);
+        SERVO_SetAngle(0, 90);
+        FollowLine(0.55);
+        Move(35, 0.5);
+    }
+}
 ///Main program for the combattant challenge, robot A.
 ///colorZoneA : The color of the zone the robot has to pick up the ball.
 ///colorZoneB : The color of the zone robot B has to push the ball to.
-void CombattantA(Color colorZoneA, Color colorZoneB)
+void CombattantA(Color colorZoneA)//, Color colorZoneB)
 {
     //start a timer so that the robot stops everything after a minute
     /* turns out it doesn't do shit yet
@@ -308,14 +400,24 @@ void CombattantA(Color colorZoneA, Color colorZoneB)
     Turn(angle);
 
     //follow the line until the zone is reached
-    FollowLine(0.4);
+    FollowLine(0.3);
 
     //move forward a bit
-    Move(33, 0.4);
+    Move(28, 0.3);
+    //Red :
+    //Green : 28cm
+    //Yellow :
+    //Blue :  28cm
 
     //grip the ball using the motorized arm
     Grip();
-
+    delay(500);
+    Move(-5.5,0.3);
+    Release();
+    delay(400);
+    Move(4.5,0.09);
+    delay(250);
+    Grip();
     //180 turn
     Move(-10, 0.4);
     delay(250);
@@ -325,12 +427,12 @@ void CombattantA(Color colorZoneA, Color colorZoneB)
     Move(10, 0.4); //ROBUS should now be back on the line
     Loosen();
     FollowLine(0.4, 70);
-
+    delay(2000);
     //let go of the ball
     Release();
 
     //move out of the way
-    if(colorZoneA != colorZoneB) //it'll back up to the zone where it picked up the ball
+    /*if(colorZoneA != colorZoneB) //it'll back up to the zone where it picked up the ball
     {
         Move(-95, 0.4);
     }
@@ -339,48 +441,19 @@ void CombattantA(Color colorZoneA, Color colorZoneB)
         Move(-60, 0.4);
         Turn(PI/2);
         Move(55, 0.4); //it goes to a near wall
-    }
+    }*/
     //Robot A's purpose is now complete
+    Move(-90, 0.5);
 }
 
 ///Main program for the combattant challenge, robot B.
 ///colorZone : The color of the zone the robot has to drop/push the ball.
-void CombattantB(Color colorZone)
-{
-    //wait a minute before starting, if necessary
-    //delay(1000 * 60);
-
-    //start a timer so that the robot stops everything after a minute
-    /*
-    timeAtStart = millis();
-    SOFT_TIMER_Enable(0);
-    */
-
-    //move forward a bit to be able to grip the ball in the center
-
-    //find the ball, then grab it
-
-    //rotate to face the right color
-
-    //push the ball in the zone
-
-    //----------OR----------
-
-    //go on the opposite line of the zone
-
-    //face the center
-
-    //move forward
-
-    //find the ball
-
-    //move forward to grip it
-
-    //rotate back to face the line
-
-    //follow the line
-
-    //release the ball
+void CombattantB(Color colorZoneB)
+{   
+    //wait a minute before starting
+    //delay(60000);
+    SERVO_SetAngle(0, 180);
+    MoveToPosition(colorZoneB);
 }
 
 //---------------- TESTS ----------------
@@ -405,6 +478,20 @@ void Tests()
     //timeAtStart = millis();
     //SOFT_TIMER_Enable(0);
     
+    //move forward a bit
+    Move(33, 0.6);
+
+    //grip the ball using the motorized arm
+    Grip();
+
+    //180 turn
+    Move(-10, 0.4);
+    delay(250);
+    Turn(PI);
+
+    //maybe go forward a bit, then follow line until reached the center
+    Move(10, 0.4); //ROBUS should now be back on the line
+    Loosen();
 }
 
 /* ****************************************************************************
@@ -440,8 +527,8 @@ void loop()
         delay(500);
         //Tests();
         
-        CombattantA(Color::Blue, Color::Yellow); //uncomment either A or B, and change the colors
-        //CombattantB(Color::);
+        //CombattantA(Color::Red); //uncomment either A or B, and change the colors
+        CombattantB(Color::Yellow);
     }
     SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
