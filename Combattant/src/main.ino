@@ -153,11 +153,15 @@ void Test()
 {
     //do some tests
     //Serial.print("values : ");
-    //IRBall();
-    AlignAlec();
-    /*int dist = sharp.distance();
-    Serial.print(dist);
-    Serial.print("\n");*/
+    IRBall();
+    //AlignAlec();
+    //float angle = IRBall();
+    //float distanceBall = sharp.distance();
+    //Move(distanceBall, 0.3);
+    //SERVO_SetAngle(0, 90);
+    //delay(300);
+   // Move(-distanceBall, 0.3);
+    //Turn(-angle);
     /*Serial.print(analogRead(A0)); Serial.print("\t");
     Serial.print(analogRead(A1)); Serial.print("\t");
     Serial.print(analogRead(A2)); Serial.print("\t");
@@ -182,7 +186,9 @@ void setup()
     BoardInit();
 
     //color sensor setup
-    Serial.println("Color View Test!");
+    //Serial.println("Color View Test!");
+    SERVO_Enable(0);
+    SERVO_SetAngle(0, 135);
     /*
     if (tcs.begin())
         Serial.println("Found sensor");
@@ -848,7 +854,7 @@ void IRBallAlign()
 
 ///Scans from PI/4 to -PI/4 rads to find the ball, then turns to face it.
 ///Returns the angle from the center.
-float AlignAlec()
+/*float AlignAlec()
 {
     int i;
     float tabDistance[16] = {200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200};
@@ -875,28 +881,37 @@ float AlignAlec()
     return (-PI/4) + tabAngle[smallestDistancePos];
     //Move(40, 0.4);
 }
-//print durant fct pour voir ce qu'il voit
+//print durant fct pour voir ce qu'il voit*/
 
-/*float IRBallPO()
+float IRBall()
 {
-   float distance1, angleBalai1 = 0, angleMilieu = 0, distanceBallon;
+    int distance1, distanceBallon;
+   float angleBalai1 = 0, angleMilieu = 0, angleBalaiTotal = 0;
    bool foundBall = false;
-   Turn (-PI/4);
-    while (foundBall==false) //while(abs(distance2-distance1) <= 5) //&& distance1 <= 80 && distance2 <= 80 && distance1 >= 10 && distance2 >= 10)
+   Turn (-PI/2);
+    while (foundBall == false) //while(abs(distance2-distance1) <= 5) //&& distance1 <= 80 && distance2 <= 80 && distance1 >= 10 && distance2 >= 10)
     {
         distance1 = sharp.distance(); //sharp.distance();
+        delay(300);
         while (distance1 <=60)
         {
             Turn(PI/32);
+            delay(300);
             distance1 = sharp.distance();
             angleBalai1 += PI/32;
+            angleBalaiTotal += PI/32;
+            Serial.print(distance1);
+            Serial.print("\n");
             foundBall = true;
             delay(300);
         }
+        Serial.print(distance1);
+        Serial.print("\n");
         Turn(PI/32);
+        angleBalaiTotal += PI/32;
         delay(300);
     }
     angleMilieu = (-angleBalai1)/2;
-    Turn(-PI/32 + angleMilieu);
-    return angleMilieu;
-}*/
+    Turn((-PI/32) + angleMilieu);
+    return (PI/2) - angleBalaiTotal - (PI/32) + angleMilieu;
+}
