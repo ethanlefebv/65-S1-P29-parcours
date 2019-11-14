@@ -3,7 +3,7 @@ Projet: main.ino
 Equipe: P29
 Auteurs: Étienne Lefebvre
 Description: Programme pour deplacer le ROBUS pour le defi du combattant.
-Date: 25 octobre 2019
+Date: 04 novembre 2019
 */
 
 /* ****************************************************************************
@@ -23,12 +23,28 @@ Variables globales et defines
 const float WHEEL_CIRCUMFERENCE = 23.94;
 const int PULSES_PER_CYCLE = 3200;
 const float BASE_SPEED = 0.8;
+const unsigned long TIME_TO_STOP_AT = 20000; //in ms
+
+unsigned long timeAtStart;
+
 
 enum class Color { Green, Red, Yellow, Blue};
 
 /* ****************************************************************************
 Vos propres fonctions sont creees ici
 **************************************************************************** */
+
+///A timer that will stop everything after the time set in the constant TIME_TO_STOP_AT.
+void TimeBomb()
+{
+    Serial.println("Just called Timebomb().");
+    if((millis() - timeAtStart) > TIME_TO_STOP_AT)
+    {
+        Serial.println("Starting infinite loop.");
+        while(true){} //yeah that's done on purpose
+        //delay(500000); //arbitrary number
+    }
+}
 
 ///Converts a distance to the according number of pulses.
 ///distance : The distance in centimeters.
@@ -69,15 +85,13 @@ void LineTrackerCalculateSpeed(float baseSpeed, float* speedLeft, float* speedRi
 ///speed : The base speed.
 ///pulses : The distance to travel in pulses. Should always be positive.
 ///useLineTracker : Enables/disables the line tracking feature.
-void PID(float speed, int pulses, bool useLineTracker)
+void PID(float speed, int pulses)
 {
     int totalPulsesLeft = 0, totalPulsesRight = 0, 
         deltaPulsesLeft = 0, deltaPulsesRight = 0,
         errorDelta = 0, errorTotal = 0;
 
-    int lineErrorLeft = 0, lineErrorRight = 0, lineFirstSensor = 0, lineSecondSensor = 0;
-
-    const float kp = 0.001, ki = 0.001, kLine = 0.01;
+    const float kp = 0.001, ki = 0.001;
     
     //the number of pulses ROBUS will accelerate/decelerate
     float pulsesAcceleration = 1/10.0 * pulses;
@@ -92,21 +106,12 @@ void PID(float speed, int pulses, bool useLineTracker)
     MOTOR_SetSpeed(LEFT, slowSpeed);
     MOTOR_SetSpeed(RIGHT, slowSpeed);
 
-    if(useLineTracker)
-        //FindLine(&lineFirstSensor, &lineSecondSensor);
-
     while(totalPulsesRight < pulses)
     {
         deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
         deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
         totalPulsesLeft += deltaPulsesLeft;
         totalPulsesRight += deltaPulsesRight;
-
-        if(useLineTracker)
-        {
-            lineErrorLeft = analogRead(lineFirstSensor - 1) / analogRead(lineFirstSensor);
-            lineErrorRight = analogRead(lineSecondSensor + 1) / analogRead(lineSecondSensor);
-        }
 
         //change the 2 following lines if we change the master
         errorDelta = deltaPulsesRight - deltaPulsesLeft;
@@ -125,10 +130,6 @@ void PID(float speed, int pulses, bool useLineTracker)
             masterSpeed = speed;
         }
         slaveSpeed = masterSpeed + (errorDelta * kp) + (errorTotal * ki);
-        if(useLineTracker)
-        {
-            slaveSpeed += (lineErrorRight * kLine) - (lineErrorLeft * kLine);
-        }
         MOTOR_SetSpeed(LEFT, speedSign * slaveSpeed);
         MOTOR_SetSpeed(RIGHT, speedSign * masterSpeed);
         delay(40);
@@ -191,12 +192,11 @@ void LineTracker(float speed)
 ///Move ROBUS according to the distance specified.
 ///distance : The distance to cover in centimeters. Can be negative.
 ///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
-///useLineTracker : Enables/disables the line tracking feature.
-void Move(float distance, float speed, bool useLineTracker)
+void Move(float distance, float speed)
 {
     int distanceSign = distance > 0 ? 1 : -1;
     //distanceSign is used to reverse the speed if the distance is negative
-    PID(distanceSign * speed, DistanceToPulses(fabs(distance)), useLineTracker);
+    PID(distanceSign * speed, DistanceToPulses(fabs(distance)));
 }
 
 ///Make ROBUS follow a line for a certain distance.
@@ -209,7 +209,7 @@ void FollowLine(float speed, float distance)
     LineTracker(/*distanceSign * */speed, DistanceToPulses(fabs(distance)));
 }
 
-///Move ROBUS according to the distance specified.
+///Make ROBUS follow a line until it leaves the line.
 ///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
 void FollowLine(float speed)
 {
@@ -255,54 +255,208 @@ void Turn(float angle)
     MOTOR_SetSpeed(RIGHT, 0);
 }
 
+void Grip()
+{
+    delay(500);
+    SERVO_SetAngle(0, 82);
+    delay(500);
+}
+
+void Loosen()
+{
+    SERVO_SetAngle(0, 100);
+}
+
+void Release()
+{
+    delay(500);
+    SERVO_SetAngle(0, 135);
+    delay(500);
+}
+
+void MoveToLine(void)
+{
+    while(((analogRead(A7) + (analogRead(A0)) < 1000)))
+    {
+    MOTOR_SetSpeed(LEFT , 0.15);
+    MOTOR_SetSpeed(RIGHT , 0.15);
+    }
+    MOTOR_SetSpeed(LEFT , 0);
+    MOTOR_SetSpeed(RIGHT , 0);
+    delay(250);
+    while(analogRead(A0) < analogRead(A7))
+    {
+    MOTOR_SetSpeed(RIGHT , 0.1);
+     }
+     while(analogRead(A7) < analogRead(A0))
+    {
+    MOTOR_SetSpeed(LEFT , 0.1);
+     }
+    delay(250);
+    MOTOR_SetSpeed(LEFT , 0);
+    MOTOR_SetSpeed(RIGHT , 0);
+}
+
+void MoveToPosition(Color colorZoneB)
+{
+    if(colorZoneB == Color::Green) 
+    {
+        Move(-20, 0.4);
+        Turn(-PI/4);
+        delay(200);
+        Move(76 ,0.6);
+        delay(200);
+        Turn(PI/2);
+        delay(300);
+        MoveToLine();
+        delay(50);
+        Move(3,0.1);
+        delay(150);
+        Turn(PI/2);
+        delay(300);
+        SERVO_SetAngle(0, 100);
+        FollowLine(0.55);
+        Move(35, 0.5);
+    }
+    else if(colorZoneB == Color::Red) 
+    {
+        Move(-20, 0.4);
+        Turn(PI/4);
+        delay(200);
+        Move(76 ,0.6);
+        delay(300);
+        Turn(-PI/2);
+        delay(200);
+        MoveToLine();
+        delay(50);
+        Move(3,0.1);
+        delay(150);
+        Turn(-PI/2);
+        delay(300);
+        SERVO_SetAngle(0, 100);
+        FollowLine(0.55);
+        Move(35, 0.5);
+    }
+    else if(colorZoneB == Color::Blue) 
+    {
+        Move(-30, 0.4);
+        Turn(-PI/4);
+        MoveToLine();
+        delay(150);
+        Move(3,0.1);
+        delay(50);
+        Turn(PI/2);
+        delay(300);
+        SERVO_SetAngle(0, 100);
+        FollowLine(0.55);
+        Move(35, 0.5);
+    }
+    else if(colorZoneB == Color::Yellow) 
+    {
+        Move(-30, 0.4);
+        Turn(PI/4);
+        MoveToLine();
+        delay(150);
+        Move(3,0.1);
+        delay(50);
+        Turn(-PI/2);
+        delay(300);
+        SERVO_SetAngle(0, 90);
+        FollowLine(0.55);
+        Move(35, 0.5);
+    }
+}
 ///Main program for the combattant challenge, robot A.
-///colorZone : The color of the zone the robot has to pick up the ball.
-void CombattantA(Color colorZone)
+///colorZoneA : The color of the zone the robot has to pick up the ball.
+///colorZoneB : The color of the zone robot B has to push the ball to.
+void CombattantA(Color colorZoneA)//, Color colorZoneB)
 {
     //start a timer so that the robot stops everything after a minute
+    /* turns out it doesn't do shit yet
+    timeAtStart = millis();
+    SOFT_TIMER_Enable(0);
+    */
 
     //move to the middle of the arena
-    Move(35, 0.4, false); //will probably need to change the distance
+    Move(39, 0.2); //will probably need to change the distance
 
     //rotate to face the right color
-    //either do a switch-case or some math magic using the color's associated number
+    float angle = 0;
+    switch (colorZoneA)
+    {
+        case Color::Green:
+            angle = -PI/4;
+            break;
+        case Color::Red:
+            angle = PI/4;
+            break;
+        case Color::Yellow:
+            angle = 3*PI/4;
+            break;
+        case Color::Blue:
+            angle = -3*PI/4;
+            break;
+    }
+    Turn(angle);
 
     //follow the line until the zone is reached
+    FollowLine(0.3);
 
     //move forward a bit
+    Move(28, 0.3);
+    //Red :
+    //Green : 28cm
+    //Yellow :
+    //Blue :  28cm
 
     //grip the ball using the motorized arm
-
-    //move backwards a bit
-
+    Grip();
+    delay(500);
+    Move(-5.5,0.3);
+    Release();
+    delay(400);
+    Move(4.5,0.09);
+    delay(250);
+    Grip();
     //180 turn
+    Move(-10, 0.4);
+    delay(250);
+    Turn(PI);
 
     //maybe go forward a bit, then follow line until reached the center
-
+    Move(10, 0.4); //ROBUS should now be back on the line
+    Loosen();
+    FollowLine(0.4, 70);
+    delay(2000);
     //let go of the ball
+    Release();
 
-    //move out of the way then stop
-
+    //move out of the way
+    /*if(colorZoneA != colorZoneB) //it'll back up to the zone where it picked up the ball
+    {
+        Move(-95, 0.4);
+    }
+    else
+    {
+        Move(-60, 0.4);
+        Turn(PI/2);
+        Move(55, 0.4); //it goes to a near wall
+    }*/
+    //Robot A's purpose is now complete
+    Move(-90, 0.5);
 }
 
 ///Main program for the combattant challenge, robot B.
 ///colorZone : The color of the zone the robot has to drop/push the ball.
-void CombattantB(Color colorZone)
-{
+void CombattantB(Color colorZoneB)
+{   
     //wait a minute before starting
-
-    //start a timer so that the robot stops everything after a minute
-
-    //move forward a bit to be able to grip the ball in the center
-
-    //find the ball, then grab it
-
-    //rotate to face the right color
-
-    //push the ball in the zone
+    //delay(60000);
+    SERVO_SetAngle(0, 180);
+    MoveToPosition(colorZoneB);
 }
 
-//----------------
+//---------------- TESTS ----------------
 
 void TestLineTrackerValues()
 {
@@ -319,9 +473,25 @@ void TestLineTrackerValues()
     Serial.println();
 }
 
-void TestLineTrackerMove()
+void Tests()
 {
-    FollowLine(0.4);
+    //timeAtStart = millis();
+    //SOFT_TIMER_Enable(0);
+    
+    //move forward a bit
+    Move(33, 0.6);
+
+    //grip the ball using the motorized arm
+    Grip();
+
+    //180 turn
+    Move(-10, 0.4);
+    delay(250);
+    Turn(PI);
+
+    //maybe go forward a bit, then follow line until reached the center
+    Move(10, 0.4); //ROBUS should now be back on the line
+    Loosen();
 }
 
 /* ****************************************************************************
@@ -334,6 +504,12 @@ Fonctions d'initialisation (setup)
 void setup()
 {
     BoardInit();
+    timeAtStart = 0;
+    SOFT_TIMER_SetCallback(0, &TimeBomb);
+    SOFT_TIMER_SetDelay(0, 500);
+
+    SERVO_Enable(0);
+    Release();
 }
 
 
@@ -344,12 +520,15 @@ Fonctions de boucle infini (loop())
 
 void loop()
 {
+    //SERVO_SetAngle(1,0);
+
     if(ROBUS_IsBumper(REAR))
     {
-        delay(1000);
-        //TestLineTrackerMove();
-        Turn(-PI/4);
-        //TestLineTrackerValues();
+        delay(500);
+        //Tests();
+        
+        //CombattantA(Color::Red); //uncomment either A or B, and change the colors
+        CombattantB(Color::Yellow);
     }
     SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
