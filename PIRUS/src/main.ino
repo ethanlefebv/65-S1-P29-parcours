@@ -13,6 +13,8 @@ Inclure les librairies de functions que vous voulez utiliser
 #include <Arduino.h>
 #include <LibRobus.h> // Essentielle pour utiliser RobUS
 #include <math.h>
+#include <KT403A_Player.h>
+
 
 
 /* ****************************************************************************
@@ -25,6 +27,31 @@ const int PULSES_PER_CYCLE = 3200;
 const float BASE_SPEED = 0.8;
 
 enum class Color { Green, Red, Yellow, Blue};
+
+
+
+#ifdef __AVR__
+#include <SoftwareSerial.h>
+SoftwareSerial SSerial(2, 3); // RX, TX
+#define COMSerial SSerial
+#define ShowSerial Serial 
+
+KT403A<SoftwareSerial> Mp3Player;
+#endif
+
+#ifdef ARDUINO_SAMD_VARIANT_COMPLIANCE
+#define COMSerial Serial1
+#define ShowSerial SerialUSB 
+
+KT403A<Uart> Mp3Player;
+#endif
+
+#ifdef ARDUINO_ARCH_STM32F4
+#define COMSerial Serial
+#define ShowSerial SerialUSB 
+
+KT403A<HardwareSerial> Mp3Player;
+#endif
 
 /* ****************************************************************************
 Vos propres fonctions sont creees ici
@@ -239,11 +266,31 @@ void Turn(float angle)
     MOTOR_SetSpeed(RIGHT, 0);
 }
 
+
+
+
+
+///Play the music from the MP3 player and increase the volume overtime
+void MP3Play()
+{
+    AUDIO_SetVolume(0.1);
+    AUDIO_Play(1);
+    //If the button to stop the alarm is pushed, pause the MP3 player.
+    //If the button to resume the alarm is pushed, resume the MP3 player.
+    //Else if the Simon is completed, stop the MP3 player. 
+    //Else, increase the volume every X seconds until the maximum volume is reached.
+    if(AUDIO_IsFinish() == true)
+    {
+        AUDIO_Play(1);
+    }
+    
+}
+
 //---------------- TESTS ----------------
 
 void Tests()
 {
-    
+    MP3Play();
 }
 
 /* ****************************************************************************
@@ -256,6 +303,9 @@ Fonctions d'initialisation (setup)
 void setup()
 {
     BoardInit();
+    AudioInit();
+    //Mp3Player.init(COMSerial); //use Software Serial.
+    //Mp3Player.init(Serial1);   //use Hardware Serial1.
 }
 
 
@@ -269,6 +319,7 @@ void loop()
     if(ROBUS_IsBumper(REAR))
     {
         delay(500);
+        Tests();
         //do something
     }
     //SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
