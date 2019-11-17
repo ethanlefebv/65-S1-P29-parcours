@@ -268,22 +268,40 @@ void Turn(float angle)
 
 
 
+void Volume()
+{
+    float volumeplus;
+    AUDIO_SetVolume(volumeplus);
+    volumeplus += 0.1;
+}
 
 
 ///Play the music from the MP3 player and increase the volume overtime
 void MP3Play()
 {
+    float volume;
+    bool stop, resume;
     AUDIO_SetVolume(0.1);
     AUDIO_Play(1);
-    //If the button to stop the alarm is pushed, pause the MP3 player.
-    //If the button to resume the alarm is pushed, resume the MP3 player.
-    //Else if the Simon is completed, stop the MP3 player. 
-    //Else, increase the volume every X seconds until the maximum volume is reached.
-    if(AUDIO_IsFinish() == true)
+    if(AUDIO_IsFinish() == true)//If the music is over, start it again
     {
         AUDIO_Play(1);
     }
-    
+    else if(stop == true)//The button to start the Simon is pressed
+    {
+        AUDIO_Pause();
+        if(resume == true)//The robot restarted itself
+        {
+            AUDIO_Resume();
+        }
+    }
+    else //Increase the volume every 10 seconds until the maximum volume is reached 
+    {
+       SOFT_TIMER_SetCallback(0, Volume);
+       SOFT_TIMER_SetDelay(0, 10000);
+       SOFT_TIMER_SetRepetition(0,9);
+       SOFT_TIMER_Enable(0);
+    }
 }
 
 //---------------- TESTS ----------------
