@@ -2,8 +2,8 @@
 Projet: main.ino
 Equipe: P29
 Auteurs: Étienne Lefebvre
-Description: Programme pour deplacer le ROBUS pour le defi du combattant.
-Date: 04 novembre 2019
+Description: Programme qui gere le ROBUS pour le concours PIRUS.
+Date: 18 novembre 2019
 */
 
 /* ****************************************************************************
@@ -18,13 +18,46 @@ Inclure les librairies de functions que vous voulez utiliser
 /* ****************************************************************************
 Variables globales et defines
 **************************************************************************** */
-// -> defines...
-// L'ensemble des fonctions y ont acces
-const float WHEEL_CIRCUMFERENCE = 23.94;
-const int PULSES_PER_CYCLE = 3200;
-const float BASE_SPEED = 0.8;
 
-enum class Color { Green, Red, Yellow, Blue};
+//--------------- Constants ---------------
+
+const float WHEEL_CIRCUMFERENCE = 23.94;
+const float RADIUS_ROTATION = 19.33 / 2; //19.33 is the distance between the wheels
+const int PULSES_PER_CYCLE = 3200;
+const float BASE_SPEED = 0.4;
+
+//normal distance for a move is specified in centimeters as the parameter
+const int DISTANCE = DistanceToPulses(10); 
+const int DISTANCE_ROTATION = DistanceToPulses(RADIUS_ROTATION * PI/2); //the rotations will always be of 90 degrees
+//there are 4 movements (in order) : forward, backward, turn left, turn right
+int MOVEMENTS[4][2] = { {DISTANCE, DISTANCE}, {-DISTANCE, -DISTANCE}, {-DISTANCE_ROTATION, DISTANCE_ROTATION}, {DISTANCE_ROTATION, -DISTANCE_ROTATION}};
+
+//--------------- Enumerations ---------------
+
+enum class Mode { Sleep, Move, Simon};
+enum class Orientation { North, West, South, East};
+
+//--------------- Variables ---------------
+
+//----- General -----
+unsigned long time;
+Mode currentMode;
+bool buttonPressed; //the button to stop the alarm
+
+//----- Movements -----
+int totalPulsesLeft = 0, totalPulsesRight = 0, 
+    deltaPulsesLeft = 0, deltaPulsesRight = 0,
+    errorDelta = 0, errorTotal = 0;
+const float kp = 0.001, ki = 0.001;
+
+Orientation currentOrientation = Orientation::North;
+int position[2] = {7, 7}; //X and Y
+int pulsesToTravel[2] = {0, 0}; //LEFT and RIGHT
+bool moveCompleted = true;
+
+
+
+
 
 /* ****************************************************************************
 Vos propres fonctions sont creees ici
@@ -37,6 +70,23 @@ int DistanceToPulses(float distance)
     return (distance / WHEEL_CIRCUMFERENCE) * PULSES_PER_CYCLE;
 }
 
+///Returns a random number in the range provided.
+///min : the included minimum value.
+///max : the excluded maximum value.
+int Random(int min, int max)
+{
+    static bool first = true;
+    if (first) 
+    {  
+        srand( millis() ); //seeding for the first time only, until the program restarts
+        first = false;
+    }
+    return min + (rand() % (max + 1 - min));
+}
+
+//---------------- OLD FUNCTIONS ----------------
+
+/*
 ///Returns true if at least one sensor has some black under it.
 bool IsOnALine()
 {
@@ -46,8 +96,9 @@ bool IsOnALine()
         isOnALine = analogRead(i) > 600;
     }
     return isOnALine;
-}
+}*/
 
+/*
 void LineTrackerCalculateSpeed(float baseSpeed, float* speedLeft, float* speedRight, float kLine)
 {
     float avgLeft = 0, avgRight = 0,
@@ -63,8 +114,9 @@ void LineTrackerCalculateSpeed(float baseSpeed, float* speedLeft, float* speedRi
 
     *speedLeft = baseSpeed + (kLine * avgErrorLeft);
     *speedRight = baseSpeed + (kLine * avgErrorRight);
-}
+}*/
 
+/*
 ///Function to move ROBUS in a straight line.
 ///speed : The base speed.
 ///pulses : The distance to travel in pulses. Should always be positive.
@@ -120,8 +172,9 @@ void PID(float speed, int pulses)
     }
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
-}
+}*/
 
+/*
 ///Function to make ROBUS follow a line.
 ///speed : The base speed, needs to be positive.
 ///pulses : The distance to travel in pulses. Should always be positive.
@@ -149,8 +202,9 @@ void LineTracker(float speed, int pulses)
     }
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
-}
+}*/
 
+/*
 ///Function to make ROBUS follow a line.
 ///speed : The base speed, needs to be positive.
 void LineTracker(float speed)
@@ -171,8 +225,9 @@ void LineTracker(float speed)
     }
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
-}
+}*/
 
+/*
 ///Move ROBUS according to the distance specified.
 ///distance : The distance to cover in centimeters. Can be negative.
 ///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
@@ -181,8 +236,9 @@ void Move(float distance, float speed)
     int distanceSign = distance > 0 ? 1 : -1;
     //distanceSign is used to reverse the speed if the distance is negative
     PID(distanceSign * speed, DistanceToPulses(fabs(distance)));
-}
+}*/
 
+/*
 ///Make ROBUS follow a line for a certain distance.
 ///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
 ///distance : The distance to cover in centimeters. Must be positive for now.
@@ -190,16 +246,18 @@ void FollowLine(float speed, float distance)
 {
     int distanceSign = distance > 0 ? 1 : -1;
     //distanceSign is used to reverse the speed if the distance is negative
-    LineTracker(/*distanceSign * */speed, DistanceToPulses(fabs(distance)));
-}
+    LineTracker(speed, DistanceToPulses(fabs(distance)));
+}*/
 
+/*
 ///Make ROBUS follow a line until it leaves the line.
 ///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
 void FollowLine(float speed)
 {
     LineTracker(speed);
-}
+}*/
 
+/*
 ///Turn ROBUS according to the angle specified.
 ///angle : the rotation angle in radians. Positive makes it go left,
 ///        while negative makes it go right.
@@ -231,12 +289,54 @@ void Turn(float angle)
         //errorDelta = deltaPulsesRight - deltaPulsesLeft;
         errorTotal = totalPulsesRight - totalPulsesLeft;
 
-        correctedSpeed = baseSpeed /*+ (errorDelta * kp)*/ + (errorTotal * ki);
+        correctedSpeed = baseSpeed + (errorTotal * ki);
 
         MOTOR_SetSpeed(LEFT, motorLeftSign * correctedSpeed);
     }
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
+}*/
+
+//---------------- NEW FUNCTIONS ----------------
+
+void GenerateRandomMove()
+{
+    //check orientation and position, so the next move is chosen accordingly
+    
+    //pick a random move
+    int newMove = Random(0,4);
+    
+    //set the new distance to travel
+    pulsesToTravel[LEFT] = MOVEMENTS[newMove][LEFT];
+    pulsesToTravel[RIGHT] = MOVEMENTS[newMove][RIGHT];
+
+    //set the new position or orientation
+    switch (newMove)
+    {
+        case 0: //forward
+            //something
+            break;
+        case 1: //backwards
+            //something
+            break;
+        case 2: //turns left
+            currentOrientation = (Orientation)(((int)currentOrientation + 1) % 4);
+            break;
+        case 3: //turns right
+            currentOrientation = (Orientation)(((int)currentOrientation - 1 + 4) % 4);
+            break;
+    }
+
+    //making sure the next loop starts the move
+    moveCompleted = false;
+}
+
+void Move()
+{
+
+
+    //change moveCompleted if the movement is over
+    
 }
 
 //---------------- TESTS ----------------
@@ -251,11 +351,15 @@ Fonctions d'initialisation (setup)
 **************************************************************************** */
 // -> Se fait appeler au debut du programme
 // -> Se fait appeler seulement un fois
-// -> Generalement on y initilise les varibbles globales
+// -> Generalement on y initilise les variables globales
 
 void setup()
 {
     BoardInit();
+
+    //Variables initiation
+    currentMode = Mode::Sleep;
+
 }
 
 
@@ -266,11 +370,10 @@ Fonctions de boucle infini (loop())
 
 void loop()
 {
-    if(ROBUS_IsBumper(REAR))
-    {
-        delay(500);
-        //do something
-    }
+    //main program goes here
+    Move();
+
+
     //SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
 }
