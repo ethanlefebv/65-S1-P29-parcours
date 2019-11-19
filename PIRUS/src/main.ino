@@ -12,16 +12,19 @@ Date: 18 novembre 2019
 #include <LibRobus.h> // Essentielle pour utiliser RobUS
 #include <math.h>
 
+//--------------- Function declarations ---------------
+
+int DistanceToPulses(float);
 
 //--------------- Constants ---------------
 
 const float WHEEL_CIRCUMFERENCE = 23.94;
 const float RADIUS_ROTATION = 19.33 / 2; //19.33 is the distance between the wheels
 const int PULSES_PER_CYCLE = 3200;
-const float BASE_SPEED = 0.4;
+const float BASE_SPEED = 0.3;
 
 //normal distance for a move is specified in centimeters as the parameter
-const int DISTANCE = DistanceToPulses(10); 
+const int DISTANCE = DistanceToPulses(20); 
 const int DISTANCE_ROTATION = DistanceToPulses(RADIUS_ROTATION * PI/2); //the rotations will always be of 90 degrees
 //there are 4 movements (in order) : forward, backwards, turn left, turn right
 const int MOVEMENTS[4][2] = { {DISTANCE, DISTANCE}, {-DISTANCE, -DISTANCE}, {-DISTANCE_ROTATION, DISTANCE_ROTATION}, {DISTANCE_ROTATION, -DISTANCE_ROTATION}};
@@ -63,15 +66,20 @@ int DistanceToPulses(float distance)
     return (distance / WHEEL_CIRCUMFERENCE) * PULSES_PER_CYCLE;
 }
 
+int GetRandomData()
+{
+    return abs(analogRead(A1) + analogRead(A2) / analogRead(A3) - analogRead(A4) * analogRead(A5) + analogRead(A6) * analogRead(A7) + analogRead(A8)); 
+}
+
 ///Returns a random number in the range provided.
 ///min : the included minimum value.
-///max : the excluded maximum value.
+///max : the included maximum value.
 int Random(int min, int max)
 {
     static bool first = true;
     if (first) 
     {  
-        srand( millis() ); //seeding for the first time only, until the program restarts
+        srand(GetRandomData()); //seeding for the first time only, until the program restarts
         first = false;
     }
     return min + (rand() % (max + 1 - min));
@@ -106,7 +114,7 @@ void GenerateRandomMove()
     //check orientation and position, so the next move is chosen accordingly
     
     //pick a random move
-    int newMove = Random(0,4);
+    int newMove = Random(0,3);
     
     //set the new distance to travel
     pulsesToTravel[LEFT] = MOVEMENTS[newMove][LEFT];
@@ -133,6 +141,7 @@ void GenerateRandomMove()
     moveCompleted = false;
 }
 
+///Moves the ROBUS according to the values in pulsesToTravel.
 void Move()
 {
     float correctedSpeed = 0;
@@ -150,6 +159,7 @@ void Move()
     }
     else if(totalPulsesLeft == 0)
     {
+        //it starts the movement, so we initialize correctly some stuff
         MOTOR_SetSpeed(LEFT, speedSignLeft * BASE_SPEED);
         MOTOR_SetSpeed(RIGHT, speedSignRight * BASE_SPEED);
         totalPulsesLeft = 1;
@@ -157,6 +167,7 @@ void Move()
     }
     else
     {
+        //it's in the middle of a movement
         deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
         deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
         totalPulsesLeft += deltaPulsesLeft;
@@ -177,7 +188,7 @@ void Tests()
 {
     for (int i = 0; i < 20; i++)
     {
-        Serial.println(Random(0,4));
+        Serial.println(Random(0,3));
     }    
 }
 
@@ -188,6 +199,7 @@ void setup()
     BoardInit();
 
     //Variables initiation
+
     currentMode = Mode::Sleep;
 
     totalPulsesLeft = 0;
@@ -203,18 +215,22 @@ void setup()
     pulsesToTravel[LEFT] = 0;
     pulsesToTravel[RIGHT] = 0;
     moveCompleted = true;
+
+    //this is only for testing
+    delay(5000);
 }
 
 void loop()
 {
     //main program goes here
-    //Move();
+
+    /*
     if(ROBUS_IsBumper(REAR))
     {
         Tests();
         delay(1000);
-    }
-
+    }*/
+    
     if(moveCompleted)
     {
         GenerateRandomMove();
