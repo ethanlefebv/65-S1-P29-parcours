@@ -6,18 +6,12 @@ Description: Programme qui gere le ROBUS pour le concours PIRUS.
 Date: 18 novembre 2019
 */
 
-/* ****************************************************************************
-Inclure les librairies de functions que vous voulez utiliser
-**************************************************************************** */
+//--------------- Libraries ---------------
 
 #include <Arduino.h>
 #include <LibRobus.h> // Essentielle pour utiliser RobUS
 #include <math.h>
 
-
-/* ****************************************************************************
-Variables globales et defines
-**************************************************************************** */
 
 //--------------- Constants ---------------
 
@@ -29,13 +23,14 @@ const float BASE_SPEED = 0.4;
 //normal distance for a move is specified in centimeters as the parameter
 const int DISTANCE = DistanceToPulses(10); 
 const int DISTANCE_ROTATION = DistanceToPulses(RADIUS_ROTATION * PI/2); //the rotations will always be of 90 degrees
-//there are 4 movements (in order) : forward, backward, turn left, turn right
-int MOVEMENTS[4][2] = { {DISTANCE, DISTANCE}, {-DISTANCE, -DISTANCE}, {-DISTANCE_ROTATION, DISTANCE_ROTATION}, {DISTANCE_ROTATION, -DISTANCE_ROTATION}};
+//there are 4 movements (in order) : forward, backwards, turn left, turn right
+const int MOVEMENTS[4][2] = { {DISTANCE, DISTANCE}, {-DISTANCE, -DISTANCE}, {-DISTANCE_ROTATION, DISTANCE_ROTATION}, {DISTANCE_ROTATION, -DISTANCE_ROTATION}};
 
 //--------------- Enumerations ---------------
 
 enum class Mode { Sleep, Move, Simon};
 enum class Orientation { North, West, South, East};
+enum class Axis { X, Y};
 
 //--------------- Variables ---------------
 
@@ -45,23 +40,21 @@ Mode currentMode;
 bool buttonPressed; //the button to stop the alarm
 
 //----- Movements -----
-int totalPulsesLeft = 0, totalPulsesRight = 0, 
-    deltaPulsesLeft = 0, deltaPulsesRight = 0,
-    errorDelta = 0, errorTotal = 0;
+int totalPulsesLeft, totalPulsesRight, 
+    deltaPulsesLeft, deltaPulsesRight,
+    errorDelta, errorTotal;
 const float kp = 0.001, ki = 0.001;
 
-Orientation currentOrientation = Orientation::North;
-int position[2] = {7, 7}; //X and Y
-int pulsesToTravel[2] = {0, 0}; //LEFT and RIGHT
-bool moveCompleted = true;
+Orientation currentOrientation;
+int position[2]; //X and Y
+int pulsesToTravel[2]; //LEFT and RIGHT
+bool moveCompleted;
 
 
 
-
-
-/* ****************************************************************************
-Vos propres fonctions sont creees ici
-**************************************************************************** */
+//---------------------------------------------------------------------------
+//------------------------------   Functions   ------------------------------
+//---------------------------------------------------------------------------
 
 ///Converts a distance to the according number of pulses.
 ///distance : The distance in centimeters.
@@ -84,221 +77,30 @@ int Random(int min, int max)
     return min + (rand() % (max + 1 - min));
 }
 
-//---------------- OLD FUNCTIONS ----------------
+//---------------- Movement functions ----------------
 
-/*
-///Returns true if at least one sensor has some black under it.
-bool IsOnALine()
+///Updates the position of the ROBUS according to the move done.
+///variation : 1 if it moves forward, -1 if it moves backwards
+void UpdatePosition(int variation)
 {
-    bool isOnALine = false;
-    for(int i = A0; i <= A7 && !isOnALine; i++)
+    switch (currentOrientation)
     {
-        isOnALine = analogRead(i) > 600;
+        case Orientation::North:
+            position[(int)Axis::Y] += variation;
+            break;
+        case Orientation::West:
+            position[(int)Axis::X] -= variation;
+            break;
+        case Orientation::South:
+            position[(int)Axis::Y] -= variation;
+            break;
+        case Orientation::East:
+            position[(int)Axis::X] += variation;
+            break;
     }
-    return isOnALine;
-}*/
+}
 
-/*
-void LineTrackerCalculateSpeed(float baseSpeed, float* speedLeft, float* speedRight, float kLine)
-{
-    float avgLeft = 0, avgRight = 0,
-          avgLeftProp = 0, avgRightProp = 0, //proportional, the errors on the extremes are amplified
-          avgErrorLeft = 0, avgErrorRight = 0;
-
-    avgLeftProp = ((4 * analogRead(A7)) + (2 * analogRead(A6)) + (1 * analogRead(A5))) / 3;
-    avgRightProp = ((1 * analogRead(A2)) + (2 * analogRead(A1)) + (4 * analogRead(A0))) / 3;
-    avgLeft = (analogRead(A7) + analogRead(A6) + analogRead(A5)) / 3;
-    avgRight = (analogRead(A2) + analogRead(A1) + analogRead(A0)) / 3;
-    avgErrorLeft = (avgRightProp - avgLeftProp) / (avgLeft + avgRight);
-    avgErrorRight = (avgLeftProp - avgRightProp) / (avgLeft + avgRight);
-
-    *speedLeft = baseSpeed + (kLine * avgErrorLeft);
-    *speedRight = baseSpeed + (kLine * avgErrorRight);
-}*/
-
-/*
-///Function to move ROBUS in a straight line.
-///speed : The base speed.
-///pulses : The distance to travel in pulses. Should always be positive.
-///useLineTracker : Enables/disables the line tracking feature.
-void PID(float speed, int pulses)
-{
-    int totalPulsesLeft = 0, totalPulsesRight = 0, 
-        deltaPulsesLeft = 0, deltaPulsesRight = 0,
-        errorDelta = 0, errorTotal = 0;
-
-    const float kp = 0.001, ki = 0.001;
-    
-    //the number of pulses ROBUS will accelerate/decelerate
-    float pulsesAcceleration = 1/10.0 * pulses;
-
-    float masterSpeed = 0, slaveSpeed = 0, slowSpeed = 0.2;
-    int speedSign = speed > 0 ? 1 : -1;
-    speed *= speedSign; //we'll convert it back to the negative value (if that's the case) at the end
-    ENCODER_Reset(LEFT);
-    ENCODER_Reset(RIGHT);
-
-    //we give it a slow speed to start
-    MOTOR_SetSpeed(LEFT, slowSpeed);
-    MOTOR_SetSpeed(RIGHT, slowSpeed);
-
-    while(totalPulsesRight < pulses)
-    {
-        deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
-        deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
-        totalPulsesLeft += deltaPulsesLeft;
-        totalPulsesRight += deltaPulsesRight;
-
-        //change the 2 following lines if we change the master
-        errorDelta = deltaPulsesRight - deltaPulsesLeft;
-        errorTotal = totalPulsesRight - totalPulsesLeft;
-
-        if(totalPulsesRight < pulsesAcceleration)
-        {
-            masterSpeed = slowSpeed + (totalPulsesRight / pulsesAcceleration * (speed - slowSpeed));
-        }
-        else if(totalPulsesRight > pulses - pulsesAcceleration)
-        {
-            masterSpeed = slowSpeed + ((pulses - totalPulsesRight) / pulsesAcceleration * (speed - slowSpeed));
-        }
-        else //not accelerating nor decelerating
-        {
-            masterSpeed = speed;
-        }
-        slaveSpeed = masterSpeed + (errorDelta * kp) + (errorTotal * ki);
-        MOTOR_SetSpeed(LEFT, speedSign * slaveSpeed);
-        MOTOR_SetSpeed(RIGHT, speedSign * masterSpeed);
-        delay(40);
-    }
-    MOTOR_SetSpeed(LEFT, 0);
-    MOTOR_SetSpeed(RIGHT, 0);
-}*/
-
-/*
-///Function to make ROBUS follow a line.
-///speed : The base speed, needs to be positive.
-///pulses : The distance to travel in pulses. Should always be positive.
-void LineTracker(float speed, int pulses)
-{
-    int avgPulses = 0;
-    const float kLine = 0.4;
-    float speedLeft = 0, speedRight = 0;
-    speed = fabs(speed); //just in case the provided speed is negative
-
-    ENCODER_Reset(LEFT);
-    ENCODER_Reset(RIGHT);
-    MOTOR_SetSpeed(LEFT, speed);
-    MOTOR_SetSpeed(RIGHT, speed);
-
-    while(avgPulses < pulses)
-    {
-        //this is not very accurate but still works a bit
-        avgPulses += (abs(ENCODER_ReadReset(LEFT)) + abs(ENCODER_ReadReset(RIGHT))) / 2;
-
-        LineTrackerCalculateSpeed(speed, &speedLeft, &speedRight, kLine);
-
-        MOTOR_SetSpeed(LEFT, speedLeft);
-        MOTOR_SetSpeed(RIGHT, speedRight);
-    }
-    MOTOR_SetSpeed(LEFT, 0);
-    MOTOR_SetSpeed(RIGHT, 0);
-}*/
-
-/*
-///Function to make ROBUS follow a line.
-///speed : The base speed, needs to be positive.
-void LineTracker(float speed)
-{
-    const float kLine = 0.4;
-    speed = fabs(speed); //just in case the provided speed is negative
-    float speedLeft = speed, speedRight = speed;
-
-    MOTOR_SetSpeed(LEFT, speedLeft);
-    MOTOR_SetSpeed(RIGHT, speedRight);
-
-    while(IsOnALine())
-    {
-        LineTrackerCalculateSpeed(speed, &speedLeft, &speedRight, kLine);
-
-        MOTOR_SetSpeed(LEFT, speedLeft);
-        MOTOR_SetSpeed(RIGHT, speedRight);
-    }
-    MOTOR_SetSpeed(LEFT, 0);
-    MOTOR_SetSpeed(RIGHT, 0);
-}*/
-
-/*
-///Move ROBUS according to the distance specified.
-///distance : The distance to cover in centimeters. Can be negative.
-///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
-void Move(float distance, float speed)
-{
-    int distanceSign = distance > 0 ? 1 : -1;
-    //distanceSign is used to reverse the speed if the distance is negative
-    PID(distanceSign * speed, DistanceToPulses(fabs(distance)));
-}*/
-
-/*
-///Make ROBUS follow a line for a certain distance.
-///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
-///distance : The distance to cover in centimeters. Must be positive for now.
-void FollowLine(float speed, float distance)
-{
-    int distanceSign = distance > 0 ? 1 : -1;
-    //distanceSign is used to reverse the speed if the distance is negative
-    LineTracker(speed, DistanceToPulses(fabs(distance)));
-}*/
-
-/*
-///Make ROBUS follow a line until it leaves the line.
-///speed : The base speed. Must be between 0.15 and 1 for the ROBUS to move correctly.
-void FollowLine(float speed)
-{
-    LineTracker(speed);
-}*/
-
-/*
-///Turn ROBUS according to the angle specified.
-///angle : the rotation angle in radians. Positive makes it go left,
-///        while negative makes it go right.
-void Turn(float angle)
-{
-    //both wheels will move
-    int totalPulsesLeft = 0, totalPulsesRight = 0,
-        deltaPulsesLeft = 0, deltaPulsesRight = 0,
-        errorDelta = 0, errorTotal = 0;
-    
-    float radius = 19.33 / 2; //in centimeters
-    float baseSpeed = 0.2, correctedSpeed = 0;
-    const float kp = 0.0001, ki = 0.0005;
-
-    int motorLeftSign = angle > 0 ? -1 : 1;
-    float pulsesRotation = DistanceToPulses(fabs(radius * angle));
-    
-    ENCODER_Reset(LEFT);
-    ENCODER_Reset(RIGHT);
-    MOTOR_SetSpeed(LEFT, motorLeftSign * baseSpeed);
-    MOTOR_SetSpeed(RIGHT, -1 * motorLeftSign * baseSpeed);
-    while(totalPulsesLeft < pulsesRotation)
-    {
-        //deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
-        //deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
-        totalPulsesLeft = abs(ENCODER_Read(LEFT)); //+= deltaPulsesLeft;
-        totalPulsesRight = abs(ENCODER_Read(RIGHT)); //+= deltaPulsesRight;
-
-        //errorDelta = deltaPulsesRight - deltaPulsesLeft;
-        errorTotal = totalPulsesRight - totalPulsesLeft;
-
-        correctedSpeed = baseSpeed + (errorTotal * ki);
-
-        MOTOR_SetSpeed(LEFT, motorLeftSign * correctedSpeed);
-    }
-    MOTOR_SetSpeed(LEFT, 0);
-    MOTOR_SetSpeed(RIGHT, 0);
-}*/
-
-//---------------- NEW FUNCTIONS ----------------
-
+///Generates a random move for the ROBUS. Makes sure it doesn't go out of the allowed area.
 void GenerateRandomMove()
 {
     //check orientation and position, so the next move is chosen accordingly
@@ -314,10 +116,10 @@ void GenerateRandomMove()
     switch (newMove)
     {
         case 0: //forward
-            //something
+            UpdatePosition(1);
             break;
         case 1: //backwards
-            //something
+            UpdatePosition(-1);
             break;
         case 2: //turns left
             currentOrientation = (Orientation)(((int)currentOrientation + 1) % 4);
@@ -327,31 +129,59 @@ void GenerateRandomMove()
             break;
     }
 
-    //making sure the next loop starts the move
+    //make sure the next loop starts the move
     moveCompleted = false;
 }
 
 void Move()
 {
+    float correctedSpeed = 0;
+    int speedSignLeft = pulsesToTravel[LEFT] / abs(pulsesToTravel[LEFT]);
+    int speedSignRight = pulsesToTravel[RIGHT] / abs(pulsesToTravel[RIGHT]);
 
+    if(totalPulsesLeft > abs(pulsesToTravel[LEFT]))
+    {
+        //the current movement is complete, so we reset the values
+        MOTOR_SetSpeed(LEFT, 0);
+        MOTOR_SetSpeed(RIGHT, 0);
+        totalPulsesLeft = 0;
+        totalPulsesRight = 0;
+        moveCompleted = true;
+    }
+    else if(totalPulsesLeft == 0)
+    {
+        MOTOR_SetSpeed(LEFT, speedSignLeft * BASE_SPEED);
+        MOTOR_SetSpeed(RIGHT, speedSignRight * BASE_SPEED);
+        totalPulsesLeft = 1;
+        totalPulsesRight = 1;
+    }
+    else
+    {
+        deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
+        deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
+        totalPulsesLeft += deltaPulsesLeft;
+        totalPulsesRight += deltaPulsesRight;
 
-    //change moveCompleted if the movement is over
-    
+        //the right motor is the master
+        errorDelta = deltaPulsesRight - deltaPulsesLeft;
+        errorTotal = totalPulsesRight - totalPulsesLeft;
+
+        correctedSpeed = BASE_SPEED + (errorDelta * kp) + (errorTotal * ki);
+        MOTOR_SetSpeed(LEFT, speedSignLeft * correctedSpeed);
+    }
 }
 
-//---------------- TESTS ----------------
+//---------------- Tests ----------------
 
 void Tests()
 {
-    
+    for (int i = 0; i < 20; i++)
+    {
+        Serial.println(Random(0,4));
+    }    
 }
 
-/* ****************************************************************************
-Fonctions d'initialisation (setup)
-**************************************************************************** */
-// -> Se fait appeler au debut du programme
-// -> Se fait appeler seulement un fois
-// -> Generalement on y initilise les variables globales
+//---------------- Init and loop functions ----------------
 
 void setup()
 {
@@ -360,20 +190,40 @@ void setup()
     //Variables initiation
     currentMode = Mode::Sleep;
 
+    totalPulsesLeft = 0;
+    totalPulsesRight = 0;
+    deltaPulsesLeft = 0;
+    deltaPulsesRight = 0;
+    errorDelta = 0;
+    errorTotal = 0;
+
+    currentOrientation = Orientation::North;
+    position[(int)Axis::X] = 7;
+    position[(int)Axis::Y] = 7;
+    pulsesToTravel[LEFT] = 0;
+    pulsesToTravel[RIGHT] = 0;
+    moveCompleted = true;
 }
-
-
-/* ****************************************************************************
-Fonctions de boucle infini (loop())
-**************************************************************************** */
-// -> Se fait appeler perpetuellement suite au "setup"
 
 void loop()
 {
     //main program goes here
-    Move();
+    //Move();
+    if(ROBUS_IsBumper(REAR))
+    {
+        Tests();
+        delay(1000);
+    }
 
-
+    if(moveCompleted)
+    {
+        GenerateRandomMove();
+    }
+    else
+    {
+        Move();
+    }
+    
     //SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
 }
