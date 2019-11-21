@@ -12,6 +12,18 @@ Date: 20 novembre 2019
 #include <LibRobus.h>
 #include <math.h>
 
+//--------------- Defines ---------------
+
+#define HOUR 0
+#define MIN 1
+#define SEC 2
+#define X 0
+#define Y 1
+#define FORWARD 0
+#define BACKWARDS 1
+#define TURN_LEFT 2
+#define TURN_RIGHT 3
+
 //--------------- Function declarations ---------------
 
 int DistanceToPulses(float);
@@ -38,16 +50,19 @@ const int INI_Y = 2;
 const int MAX_X = 4;
 const int MAX_Y = 4;
 
-//----- Countdown -----
+//----- Clock -----
 const unsigned long COUNTDOWN_TIME = 10000;
+const int TIME_DEFAULT_HOUR = 6;
+const int TIME_DEFAULT_MIN = 59;
+const int TIME_DEFAULT_SEC = 30;
+const int TIME_ALARM_HOUR = 7;
+const int TIME_ALARM_MIN = 0;
+const int TIME_ALARM_SEC = 0;
 
 //--------------- Enumerations ---------------
 
 enum class Mode { Sleep, Move, Simon};
 enum class Orientation { North, West, South, East};
-enum class Move { Forward, Backwards, TurnLeft, TurnRight};
-enum class Axis { X, Y};
-//Move and Axis are not that necessary, but are used for clarity in some functions
 
 //--------------- Variables ---------------
 
@@ -73,8 +88,9 @@ int position[2]; //X and Y
 int pulsesToTravel[2]; //LEFT and RIGHT
 bool moveCompleted;
 
-//----- Countdown -----
-unsigned long countdownTimeIni, countdownTimeLeft;
+//----- Clock -----
+int timeCurrent[3];
+unsigned long timePrevious;
 bool countdownOver;
 
 //----- Demo -----
@@ -153,16 +169,16 @@ void UpdatePosition(int variation)
     switch (currentOrientation)
     {
         case Orientation::North:
-            position[(int)Axis::Y] -= variation;
+            position[Y] -= variation;
             break;
         case Orientation::West:
-            position[(int)Axis::X] -= variation;
+            position[X] -= variation;
             break;
         case Orientation::South:
-            position[(int)Axis::Y] += variation;
+            position[Y] += variation;
             break;
         case Orientation::East:
-            position[(int)Axis::X] += variation;
+            position[X] += variation;
             break;
     }
 }
@@ -174,19 +190,19 @@ int DetermineInvalidMove()
     //it can always turn, so only Forward or Backwards can be invalid
     //the ifs (conditions) are not pretty, but are easily understandable
     int invalidMove = -1;
-    if( (currentOrientation == Orientation::North && position[(int)Axis::Y] == 0) ||
-        (currentOrientation == Orientation::West && position[(int)Axis::X] == 0) ||
-        (currentOrientation == Orientation::South && position[(int)Axis::Y] == MAX_Y) ||
-        (currentOrientation == Orientation::East && position[(int)Axis::X] == MAX_X))
+    if( (currentOrientation == Orientation::North && position[Y] == 0) ||
+        (currentOrientation == Orientation::West && position[X] == 0) ||
+        (currentOrientation == Orientation::South && position[Y] == MAX_Y) ||
+        (currentOrientation == Orientation::East && position[X] == MAX_X))
     {
-        invalidMove = 0;//(int)Move::Forward;
+        invalidMove = FORWARD;
     }
-    else if((currentOrientation == Orientation::North && position[(int)Axis::Y] == MAX_Y) ||
-            (currentOrientation == Orientation::West && position[(int)Axis::X] == MAX_X) ||
-            (currentOrientation == Orientation::South && position[(int)Axis::Y] == 0) ||
-            (currentOrientation == Orientation::East && position[(int)Axis::X] == 0))
+    else if((currentOrientation == Orientation::North && position[Y] == MAX_Y) ||
+            (currentOrientation == Orientation::West && position[X] == MAX_X) ||
+            (currentOrientation == Orientation::South && position[Y] == 0) ||
+            (currentOrientation == Orientation::East && position[X] == 0))
     {
-        invalidMove = 1;//(int)Move::Backwards;
+        invalidMove = BACKWARDS;
     }
     return invalidMove;
 }
@@ -272,75 +288,39 @@ void Move()
     }
 }
 
-//---------------- Countdown functions ----------------
+//---------------- Clock functions ----------------
 
-void Countdown()
+///Updates the false clock of the ROBUS. Must be run in the loop() function at all times.
+void Clock()
 {
-    countdownTimeLeft = COUNTDOWN_TIME - (millis() - countdownTimeIni);
-    static int previousPrintedValue = -1;
-    if(countdownTimeLeft < 0)
+    int sec = (millis() - timePrevious) / 1000;
+    if(sec == 1)
     {
-        Serial.println("Countdown over.");
-        countdownOver = true;
+        timePrevious = millis();
+        ++timeCurrent[SEC];
     }
-    else
+    if(timeCurrent[SEC] >= 60)
     {
-        int valueToPrint = ceil(countdownTimeLeft / (float)1000); //to print seconds
-        if(valueToPrint != previousPrintedValue)
-        {
-            previousPrintedValue = valueToPrint;
-            Serial.println(valueToPrint);
-        }
+        timeCurrent[SEC] = 0;
+        ++timeCurrent[MIN];
+    }
+    if(timeCurrent[MIN] >= 60)
+    {
+        timeCurrent[MIN] = 0;
+        ++timeCurrent[HOUR];
     }
 }
 
-float CountdownPO(float timeHours, float timeMin, float timeSec) //time in hours, min, sec
+///Prints the current time.
+void PrintTime()
 {
-	float timeleftSec = 0, timeleftMin = 0, timeleftHours = 24, timeleft = 0;
-	//timeSec = (timeMin*60) + (timeHours*60*60) + (timeSec); 
-    for (int i = 0; i<24 && timeleftHours >0; i++)
-    {
-        timeleftHours = timeHours - i;
-        //int j = 0;
-        timeleftMin = 60;
-        for (int j = 0; j <60 && timeleftMin > 0; j ++)
-        {
-            if (i==0)
-            {
-                timeleftMin = timeMin - j;
-            }
-            else(timeleftMin = 59 - j);
-            int timeleftSec = 60;
-            int k = 0;
-            for (k = 0; k<60 && timeleftSec > 0; k++)
-            {
-                if(timeleftMin==timeMin)
-                {
-                    timeleftSec = timeSec - k;
-                }
-                else(timeleftSec = 59 - k);
-                delay (1000);
-                Serial.print("time left :");
-                Serial.print(timeleftHours);
-                Serial.print(" : ");
-                Serial.print(timeleftMin);
-                Serial.print("\t");
-                Serial.print(timeleftSec);
-                Serial.print("\t");
-                Serial.print("\n");
-            }
-        }
-    }
-    /*for (int i = 0; i<=timeSec; i++)
-    {
-        timeleft = timeSec - i;
-        delay(1000);
-        Serial.print("time left :");
-        Serial.print(timeleft);
-        Serial.print("\n");
-    }*/
-    Serial.print("GO");
-    return timeleftSec;
+    //we'll eventually print to the LCD, but meanwhile we use the console
+    Serial.print("Time : ");
+    Serial.print(timeCurrent[HOUR]);
+    Serial.print("h");
+    Serial.print(timeCurrent[MIN]);
+    Serial.print("m");
+    Serial.println(timeCurrent[SEC]);
 }
 
 //---------------- Demos ----------------
@@ -382,18 +362,6 @@ void LoopMovementDemo()
     }
 }
 
-void LoopCountdownDemo()
-{
-    if(!countdownOver)
-    {
-        Countdown();
-    }
-    else
-    {
-        demoCountdown = false;
-    }
-}
-
 //---------------- Init and loop functions ----------------
 
 void setup()
@@ -428,23 +396,26 @@ void setup()
     errorTotal = 0;
 
     currentOrientation = Orientation::North;
-    position[(int)Axis::X] = INI_X;
-    position[(int)Axis::Y] = INI_Y;
+    position[X] = INI_X;
+    position[Y] = INI_Y;
     pulsesToTravel[LEFT] = 0;
     pulsesToTravel[RIGHT] = 0;
     moveCompleted = true;
 
-    //--- Countdown ---
-    countdownTimeIni = 0;
-    countdownOver = true;
-
-
-    //this is only for testing
-    //delay(5000);
+    //--- Clock ---
+    timeCurrent[HOUR] = TIME_DEFAULT_HOUR;
+    timeCurrent[MIN] = TIME_DEFAULT_MIN;
+    timeCurrent[SEC] = TIME_DEFAULT_SEC;
+    timePrevious = 0;
 }
 
 void loop()
 {
+    Clock();
+    PrintTime();
+
+    //--- Demo --- 
+    /*
     if(!demoMusic && !demoMovement && !demoCountdown)
     {
         demoMusic = ROBUS_IsBumper(FRONT);
@@ -465,16 +436,7 @@ void loop()
     {
         CountdownPO(0,0,10);
         demoCountdown = false;
-
-        /*
-        if(countdownTimeIni == 0)
-        {
-            countdownTimeIni = millis();
-            countdownOver = false;
-        }
-        LoopCountdownDemo();
-        */
-    }
+    }*/
     
     //SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
