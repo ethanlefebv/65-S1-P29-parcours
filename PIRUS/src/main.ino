@@ -45,10 +45,10 @@ const int DISTANCE = DistanceToPulses(20);
 const int DISTANCE_ROTATION = DistanceToPulses(RADIUS_ROTATION * PI/2); //the rotations will always be of 90 degrees
 //there are 4 movements (in order) : forward, backwards, turn left, turn right
 const int MOVEMENTS[4][2] = { {DISTANCE, DISTANCE}, {-DISTANCE, -DISTANCE}, {-DISTANCE_ROTATION, DISTANCE_ROTATION}, {DISTANCE_ROTATION, -DISTANCE_ROTATION}};
-const int INI_X = 2;
-const int INI_Y = 2;
-const int MAX_X = 4;
-const int MAX_Y = 4;
+const int INI_X = 1;
+const int INI_Y = 1;
+const int MAX_X = 2;
+const int MAX_Y = 2;
 
 //----- Clock -----
 const unsigned long COUNTDOWN_TIME = 10000;
@@ -228,20 +228,20 @@ void GenerateRandomMove()
     //set the new position or orientation
     switch (newMove)
     {
-        case 0://(int)Move::Forward:
+        case FORWARD:
             UpdatePosition(1);
             break;
-        case 1://(int)Move::Backwards:
+        case BACKWARDS:
             UpdatePosition(-1);
             break;
-        case 2://(int)Move::TurnLeft:
+        case TURN_LEFT:
             currentOrientation = (Orientation)(((int)currentOrientation + 1) % 4);
             break;
-        case 3://(int)Move::TurnRight:
+        case TURN_RIGHT:
             currentOrientation = (Orientation)(((int)currentOrientation - 1 + 4) % 4);
             break;
     }
-    Serial.print("X : "); Serial.print(position[0]); Serial.print(" | Y : "); Serial.println(position[1]);
+    //Serial.print("X : "); Serial.print(position[0]); Serial.print(" | Y : "); Serial.println(position[1]);
 
     //make sure the next loop starts the move
     moveCompleted = false;
@@ -323,6 +323,15 @@ void PrintTime()
     Serial.println(timeCurrent[SEC]);
 }
 
+///Checks if the alarm is supposed to start.
+void Alarm()
+{
+    if (timeCurrent[HOUR] >= TIME_ALARM_HOUR && timeCurrent[MIN] >= TIME_ALARM_MIN && timeCurrent[SEC] >= TIME_ALARM_SEC)
+    {
+        Serial.println("-------------------- Start alarm. --------------------");
+    }
+}
+
 //---------------- Demos ----------------
 
 void LoopMusicDemo()
@@ -344,7 +353,7 @@ void LoopMusicDemo()
 
 void LoopMovementDemo()
 {
-    if((millis() - demoTimeIni) < 10000)
+    if((millis() - demoTimeIni) < 15000)
     {
         if(moveCompleted)
         {
@@ -359,6 +368,8 @@ void LoopMovementDemo()
     {
         demoTimeIni = 0;
         demoMovement = false;
+        MOTOR_SetSpeed(LEFT,0);
+        MOTOR_SetSpeed(RIGHT, 0);
     }
 }
 
@@ -413,7 +424,9 @@ void loop()
 {
     Clock();
     PrintTime();
-
+    //Alarm();
+    //LoopMovementDemo();
+    
     //--- Demo --- 
     /*
     if(!demoMusic && !demoMovement && !demoCountdown)
