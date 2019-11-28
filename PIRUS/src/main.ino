@@ -60,13 +60,26 @@ const int MAX_Y = 2;
 const unsigned long COUNTDOWN_TIME = 10000;
 const int TIME_DEFAULT_HOUR = 6;
 const int TIME_DEFAULT_MIN = 59;
-const int TIME_DEFAULT_SEC = 30;
+const int TIME_DEFAULT_SEC = 50;
 const int TIME_ALARM_HOUR = 7;
 const int TIME_ALARM_MIN = 0;
 const int TIME_ALARM_SEC = 0;
 
 //----- Bells -----
-const int TIME_START_BELLS = 15000;
+const int TIME_START_BELLS = 10000;
+
+//----- Simon -----
+const int PIN_LED_01 = 23;
+const int PIN_LED_02 = 25;
+const int PIN_LED_03 = 27;
+const int PIN_LED_04 = 29;
+
+const int PIN_BUTTON_01 = 22;
+const int PIN_BUTTON_02 = 24;
+const int PIN_BUTTON_03 = 26;
+const int PIN_BUTTON_04 = 28;
+
+const int LED_COUNT = 4;
 
 //--------------- Variables ---------------
 
@@ -98,8 +111,9 @@ bool moveCompleted;
 int timeCurrent[3];
 unsigned long timePrevious;
 bool countdownOver;
+bool timeHasChanged;
 
-LiquidCrystal lcd(34,2,3,36,4,38);
+LiquidCrystal lcd(40,2,3,42,4,38);
 
 
 
@@ -139,11 +153,13 @@ int Random(int min, int max)
 ///Checks if the user has showed a sign of life.
 void CheckForInteraction()
 {
+    if(ROBUS_IsBumper(REAR))
+    {
+        currentMode = Mode::Simon;
+    }
     //if(something)
     //{
     //    currentMode = Mode::Simon;
-    //    StopMovement();
-    //    //stop the bells if they are currently activated?
     //}
 }
 
@@ -185,6 +201,7 @@ void StopMusic()
     AUDIO_Stop();
 }
 
+///The main function to call to play music.
 void PlayMusic()
 {
     if(!musicPlaying)
@@ -327,6 +344,7 @@ void MoveUpdate()
 
 void StopMovement()
 {
+    moveCompleted = true;
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
 }
@@ -349,38 +367,87 @@ void Move()
 void Clock()
 {
     int sec = (millis() - timePrevious) / 1000;
-    if(sec == 1)
+    if(sec >= 1)
     {
         timePrevious = millis();
-        ++timeCurrent[SEC];
+        timeCurrent[SEC] += sec;
+        timeHasChanged = true;
     }
     if(timeCurrent[SEC] >= 60)
     {
-        timeCurrent[SEC] = 0;
-        ++timeCurrent[MIN];
+        timeCurrent[MIN] += timeCurrent[SEC] / 60;
+        timeCurrent[SEC] = timeCurrent[SEC] % 60;
+        
     }
     if(timeCurrent[MIN] >= 60)
     {
-        timeCurrent[MIN] = 0;
-        ++timeCurrent[HOUR];
+        timeCurrent[HOUR] += timeCurrent[MIN] / 60;
+        timeCurrent[MIN] = timeCurrent[MIN] % 60;
     }
 }
 
-///Prints the current time.
+///Prints the current time, plus some info about the current status.
 void PrintTime()
 {
-    lcd.setCursor(0,1);
-    lcd.print(timeCurrent[HOUR]);
-    lcd.print(":");
-    lcd.print(timeCurrent[MIN]);
-    //lcd.print("m");
-    //lcd.print(timeCurrent[SEC]);
+    if(timeHasChanged)
+    {
+        lcd.clear();
+        lcd.setCursor(6,0);
+        if(timeCurrent[HOUR] < 10)
+            lcd.print('0');
+        lcd.print(timeCurrent[HOUR]);
+
+        if(timeCurrent[SEC] % 2 == 0)
+        {
+            lcd.print(':');
+        }
+        else
+        {
+            lcd.print(' ');
+        }
+        
+        if(timeCurrent[MIN] < 10)
+            lcd.print('0');
+        lcd.print(timeCurrent[MIN]);
+
+        timeHasChanged = false;
+
+        PrintInfoLine();
+    }
+}
+
+///Prints the second line that displays the current status.
+void PrintInfoLine()
+{
+    if(currentMode == Mode::Sleep)
+    {
+        lcd.setCursor(0,1);
+        lcd.print("Alarme : 0");
+        lcd.print(TIME_ALARM_HOUR);
+        lcd.print(":0");
+        lcd.print(TIME_ALARM_MIN);
+    }
+    else if(currentMode == Mode::Alarm)
+    {
+        lcd.setCursor(1,1);
+        lcd.print("Salut bonjour!");
+    }
+    else if(currentMode == Mode::Simon)
+    {
+        lcd.clear();
+        lcd.setCursor(2,0);
+        lcd.print("Complete le");
+        lcd.setCursor(0,1);
+        lcd.print("Simon en 15 sec!");
+    }
 }
 
 ///Checks if the alarm is supposed to start.
 void CheckForAlarm()
 {
-    if (timeCurrent[HOUR] >= TIME_ALARM_HOUR && timeCurrent[MIN] >= TIME_ALARM_MIN && timeCurrent[SEC] >= TIME_ALARM_SEC)
+    if (timeCurrent[HOUR] == TIME_ALARM_HOUR && 
+        timeCurrent[MIN] == TIME_ALARM_MIN && 
+        timeCurrent[SEC] == TIME_ALARM_SEC)
     {
         currentMode = Mode::Alarm;
     }
@@ -390,109 +457,125 @@ void CheckForAlarm()
 
 void Simon()
 {
-    int switchState1 = 0;
-    int switchState2 = 0;
-    int switchState3 = 0;
-    int sequence[5] = {0,0,0,0,0};
-    int order[5] = {Random(1,3), Random(1,3), Random(1,3), Random(1,3), Random(1,3)};
-    int n = 0, i = 0;
-    int time = 0;
-    Serial.print("       ");
-    Serial.print(order[0]);
-    Serial.print(order[1]);
-    Serial.print(order[2]);
-    Serial.print(order[3]);
-    Serial.print(order[4]);
+    PrintInfoLine();
+    StopMovement();
+    //stop the bells if they are currently activated?
 
-    for(i==0 ; i<=5 ; i++)
+    delay(1000);
+
+    int button1IsPressed = 0;
+    int button2IsPressed = 0;
+    int button3IsPressed = 0;
+    int button4IsPressed = 0;
+    int userOrder[5] = {0,0,0,0,0};
+    int simonOrder[5] = {Random(1, LED_COUNT), Random(1, LED_COUNT), Random(1, LED_COUNT), Random(1, LED_COUNT), Random(1, LED_COUNT)};
+    int n = 0;
+
+    //----- Part 1 : Showing the sequence -----
+    for(int i = 0; i < 5; i++)
     {
-        if(order[i]==1)
+        if(simonOrder[i] == 1)
         {
-            digitalWrite(23,HIGH);
+            digitalWrite(PIN_LED_01,HIGH);
             delay(1000);
-            digitalWrite(23,LOW);
+            digitalWrite(PIN_LED_01,LOW);
             delay(500);
         }
-        if(order[i]==2)
+        else if(simonOrder[i] == 2)
         {
-            digitalWrite(25,HIGH);
+            digitalWrite(PIN_LED_02,HIGH);
             delay(1000);
-            digitalWrite(25,LOW);
+            digitalWrite(PIN_LED_02,LOW);
             delay(500);
         }
-        if(order[i]==3)
+        else if(simonOrder[i] == 3)
         {
-            digitalWrite(27,HIGH);
+            digitalWrite(PIN_LED_03,HIGH);
             delay(1000);
-            digitalWrite(27,LOW);
+            digitalWrite(PIN_LED_03,LOW);
+            delay(500);
+        }
+        else if(simonOrder[i] == 4)
+        {
+            digitalWrite(PIN_LED_04,HIGH);
+            delay(1000);
+            digitalWrite(PIN_LED_04,LOW);
             delay(500);
         }
     }
 
-    while(n <= 4 && time < 15000)
+    //----- Part 2 : Reading user input -----
+
+    int timeSimonIni = millis();
+
+    while(n < 5 && (millis() - timeSimonIni) < 15000)
     {   
-        time = millis();
-        switchState1 = digitalRead(22);
-        switchState2 = digitalRead(24);
-        switchState3 = digitalRead(26);
-  
-        if (switchState1 == 1)
+        button1IsPressed = digitalRead(PIN_BUTTON_01);
+        button2IsPressed = digitalRead(PIN_BUTTON_02);
+        button3IsPressed = digitalRead(PIN_BUTTON_03);
+        button4IsPressed = digitalRead(PIN_BUTTON_04);
+
+        if(button1IsPressed)
         {
-            digitalWrite(23, HIGH);
+            digitalWrite(PIN_LED_01, HIGH);
             delay(200);
-            digitalWrite(23,LOW);
-            sequence[n] = 1;
+            digitalWrite(PIN_LED_01, LOW);
+            userOrder[n] = 1;
             n++;
         }
-        if (switchState2 == 1)
+        if(button2IsPressed)
         {
-            digitalWrite(25, HIGH);
+            digitalWrite(PIN_LED_02, HIGH);
             delay(200);
-            digitalWrite(25,LOW);
-            sequence[n] = 2;
+            digitalWrite(PIN_LED_02,LOW);
+            userOrder[n] = 2;
             n++;
         }
-        if (switchState3 == 1)
+        if(button3IsPressed)
         {
-            digitalWrite(27, HIGH);
+            digitalWrite(PIN_LED_03, HIGH);
             delay(200);
-            digitalWrite(27,LOW);
-            sequence[n] = 3;
+            digitalWrite(PIN_LED_03,LOW);
+            userOrder[n] = 3;
+            n++;
+        }
+        if(button4IsPressed)
+        {
+            digitalWrite(PIN_LED_04, HIGH);
+            delay(200);
+            digitalWrite(PIN_LED_04,LOW);
+            userOrder[n] = 4;
             n++;
         }
         delay(50);
-        //Serial.print(switchState1);
-        //Serial.print(switchState2);
-        //Serial.print(switchState3);
     }
-    if ((sequence[0] == order[0]) && (sequence[1] == order[1]) && (sequence[2] == order[2]) && (sequence[3] == order[3]) && (sequence[4] == order[4])){
-        Serial.println("HEEEEEEELLLLLLLLLL   YYYYYHHHHEAAAAAAAA"); // tu peux mettre le return true ici
-        digitalWrite(23, HIGH);
-        digitalWrite(25, HIGH);
-        digitalWrite(27, HIGH);
-        delay(500);
-        digitalWrite(23, LOW);
-        digitalWrite(25, LOW);
-        digitalWrite(27, LOW);
-        delay(500);
-        digitalWrite(23, HIGH);
-        digitalWrite(25, HIGH);
-        digitalWrite(27, HIGH);
-        delay(500);
-        digitalWrite(23, LOW);
-        digitalWrite(25, LOW);
-        digitalWrite(27, LOW);
-        delay(1000000);// meme chose que le commentaire dans le sprochaines lignes
+
+    //----- Part 3 : Determining the result -----
+
+    if ((userOrder[0] == simonOrder[0]) && 
+        (userOrder[1] == simonOrder[1]) && 
+        (userOrder[2] == simonOrder[2]) && 
+        (userOrder[3] == simonOrder[3]) && 
+        (userOrder[4] == simonOrder[4]))
+    {
+        //Sequence is correct
+        lcd.clear();
+        lcd.setCursor(1,0);
+        lcd.print("Défi complété");
+        lcd.setCursor(1,1);
+        lcd.print("Bonne journée!");
+        delay(3000);
+        currentMode = Mode::Sleep;
     }
     else
     {
-        digitalWrite(27,HIGH);
-        Serial.println("CRISS DE CAVE");
-        // tu peux mettre le return false ici
-        //delay(100000);// j'ai mis ca juste pour le test, dans le vraie code il va sortir de la fonction. c'est juste que
-        //il loop back si on le fait pas sortir
-        delay(1000000);
+        //Sequence is incorrect, or time is over
+        lcd.clear();
+        lcd.print("T'es pas bon");
+        delay(3000);
+        currentMode = Mode::Alarm;
     }
+    firstTimeInLoop = true;
 }
 
 //---------------- Init and loop functions ----------------
@@ -504,17 +587,17 @@ void setup()
     //--- General ---
     BoardInit();
     AudioInit();
-    lcd.begin(6,1);
+    lcd.begin(16,2);
 
     //--- Simon ---
-    pinMode(23, OUTPUT); //pour le 1
-    pinMode(22, INPUT);
-
-    pinMode(25, OUTPUT); //pour le 2
-    pinMode(24, INPUT);
-
-    pinMode(27, OUTPUT); //pour le 3
-    pinMode(26, INPUT);
+    pinMode(PIN_LED_01, OUTPUT);
+    pinMode(PIN_LED_02, OUTPUT);
+    pinMode(PIN_LED_03, OUTPUT);
+    pinMode(PIN_LED_04, OUTPUT);
+    pinMode(PIN_BUTTON_01, INPUT);
+    pinMode(PIN_BUTTON_02, INPUT);
+    pinMode(PIN_BUTTON_03, INPUT);
+    pinMode(PIN_BUTTON_04, INPUT);
 
 
     //Variables initiation
@@ -551,6 +634,7 @@ void setup()
     timeCurrent[MIN] = TIME_DEFAULT_MIN;
     timeCurrent[SEC] = TIME_DEFAULT_SEC;
     timePrevious = 0;
+    timeHasChanged = true;
 }
 
 void loop()
@@ -568,7 +652,7 @@ void loop()
             timeIni = millis();
             firstTimeInLoop = false;
         }
-        Move();
+        //Move();
         PlayMusic();
         if(millis() - timeIni > TIME_START_BELLS)
         {
@@ -579,6 +663,11 @@ void loop()
     else if (currentMode == Mode::Simon)
     {
         Simon();
+        lcd.clear();
+        lcd.print("Sorti de Simon");
+        lcd.setCursor(0,1);
+        lcd.print("Mode : ");
+        lcd.print((int)currentMode);
     }
     
     //SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
