@@ -3,7 +3,7 @@ Projet: main.ino
 Equipe: P29
 Auteurs: Étienne Lefebvre, Vincent-Xavier Voyer, Pierre-Olivier Lajoie, Robin Mailhot
 Description: Programme qui gere le ROBUS pour le concours PIRUS.
-Date: 20 novembre 2019
+Date: 28 novembre 2019
 */
 
 //--------------- Libraries ---------------
@@ -11,6 +11,7 @@ Date: 20 novembre 2019
 #include <Arduino.h>
 #include <LibRobus.h>
 #include <math.h>
+#include <LiquidCrystal.h>
 
 //--------------- Defines ---------------
 
@@ -97,6 +98,8 @@ bool moveCompleted;
 int timeCurrent[3];
 unsigned long timePrevious;
 bool countdownOver;
+
+LiquidCrystal lcd(34,2,3,36,4,38);
 
 
 
@@ -366,13 +369,12 @@ void Clock()
 ///Prints the current time.
 void PrintTime()
 {
-    //we'll eventually print to the LCD, but meanwhile we use the console
-    Serial.print("Time : ");
-    Serial.print(timeCurrent[HOUR]);
-    Serial.print("h");
-    Serial.print(timeCurrent[MIN]);
-    Serial.print("m");
-    Serial.println(timeCurrent[SEC]);
+    lcd.setCursor(0,1);
+    lcd.print(timeCurrent[HOUR]);
+    lcd.print(":");
+    lcd.print(timeCurrent[MIN]);
+    //lcd.print("m");
+    //lcd.print(timeCurrent[SEC]);
 }
 
 ///Checks if the alarm is supposed to start.
@@ -502,6 +504,7 @@ void setup()
     //--- General ---
     BoardInit();
     AudioInit();
+    lcd.begin(6,1);
 
     //--- Simon ---
     pinMode(23, OUTPUT); //pour le 1
