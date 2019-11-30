@@ -3,7 +3,7 @@ Projet: main.ino
 Equipe: P29
 Auteurs: Étienne Lefebvre, Vincent-Xavier Voyer, Pierre-Olivier Lajoie, Robin Mailhot
 Description: Programme qui gere le ROBUS pour le concours PIRUS.
-Date: 28 novembre 2019
+Date: 30 novembre 2019
 */
 
 //--------------- Libraries ---------------
@@ -28,6 +28,7 @@ Date: 28 novembre 2019
 //--------------- Function declarations ---------------
 
 int DistanceToPulses(float);
+void reset();
 
 //--------------- Enumerations ---------------
 
@@ -85,7 +86,7 @@ const int LED_COUNT = 4;
 
 //----- General -----
 Mode currentMode;
-bool buttonPressed; //the button to stop the alarm
+bool runProgram;
 bool firstTimeInLoop;
 unsigned long timeIni;
 
@@ -161,6 +162,16 @@ void CheckForInteraction()
     //{
     //    currentMode = Mode::Simon;
     //}
+}
+
+///Checks if it has to start the demo.
+void CheckForStart()
+{
+    if(ROBUS_IsBumper(FRONT))
+    {
+        runProgram = true;
+        timePrevious = millis();
+    }
 }
 
 //---------------- Music functions ----------------
@@ -342,6 +353,7 @@ void MoveUpdate()
     }
 }
 
+///Stops a movement, even if it's not over.
 void StopMovement()
 {
     moveCompleted = true;
@@ -349,6 +361,7 @@ void StopMovement()
     MOTOR_SetSpeed(RIGHT, 0);
 }
 
+///The main function to call to move the robot.
 void Move()
 {
     if(moveCompleted)
@@ -363,7 +376,7 @@ void Move()
 
 //---------------- Clock functions ----------------
 
-///Updates the false clock of the ROBUS. Must be run in the loop() function at all times.
+///Updates the false clock of the ROBUS everytime it is called.
 void Clock()
 {
     int sec = (millis() - timePrevious) / 1000;
@@ -377,7 +390,6 @@ void Clock()
     {
         timeCurrent[MIN] += timeCurrent[SEC] / 60;
         timeCurrent[SEC] = timeCurrent[SEC] % 60;
-        
     }
     if(timeCurrent[MIN] >= 60)
     {
@@ -455,6 +467,9 @@ void CheckForAlarm()
 
 //---------------- Simon functions ----------------
 
+///Executes the whole sequence for the Simon game.
+///It's the only function that isn't called repeatedly in a loop - 
+///it will exit the function only once it's done.
 void Simon()
 {
     PrintInfoLine();
@@ -506,7 +521,7 @@ void Simon()
 
     //----- Part 2 : Reading user input -----
 
-    int timeSimonIni = millis();
+    unsigned long timeSimonIni = millis();
 
     while(n < 5 && (millis() - timeSimonIni) < 15000)
     {   
@@ -561,18 +576,20 @@ void Simon()
         //Sequence is correct
         lcd.clear();
         lcd.setCursor(1,0);
-        lcd.print("Défi complété");
+        lcd.print("Defi complete");
         lcd.setCursor(1,1);
-        lcd.print("Bonne journée!");
-        delay(3000);
-        currentMode = Mode::Sleep;
+        lcd.print("Bonne journee!");
+
+        delay(10000);
+        
+        reset(); //this will reset the robot, ready for a next demo
     }
     else
     {
         //Sequence is incorrect, or time is over
         lcd.clear();
         lcd.print("T'es pas bon");
-        delay(3000);
+        delay(5000);
         currentMode = Mode::Alarm;
     }
     firstTimeInLoop = true;
@@ -582,7 +599,7 @@ void Simon()
 
 void setup()
 {
-    //Board initialization
+    //----- Board initialization -----
 
     //--- General ---
     BoardInit();
@@ -600,9 +617,10 @@ void setup()
     pinMode(PIN_BUTTON_04, INPUT);
 
 
-    //Variables initiation
+    //----- Variables initialization -----
 
     //--- General ---
+    runProgram = false;
     currentMode = Mode::Sleep;
     firstTimeInLoop = true;
     timeIni = 0;
@@ -635,9 +653,21 @@ void setup()
     timeCurrent[SEC] = TIME_DEFAULT_SEC;
     timePrevious = 0;
     timeHasChanged = true;
+
+    PrintTime();
 }
 
-void loop()
+///Function to make the robot stop and re-initialize everything.
+void reset()
+{
+    StopMusic();
+    StopMovement();
+    //stop bells
+    setup();
+}
+
+///The main program, called in the loop() function.
+void MainProgram()
 {
     Clock();
     PrintTime();
@@ -663,13 +693,16 @@ void loop()
     else if (currentMode == Mode::Simon)
     {
         Simon();
-        lcd.clear();
-        lcd.print("Sorti de Simon");
-        lcd.setCursor(0,1);
-        lcd.print("Mode : ");
-        lcd.print((int)currentMode);
     }
-    
+}
+
+void loop()
+{
+    CheckForStart();
+    if(runProgram)
+    {
+        MainProgram();
+    }
     //SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
     delay(10);// Delais pour décharger le CPU
 }
