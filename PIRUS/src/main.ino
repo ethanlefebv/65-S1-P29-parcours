@@ -374,7 +374,7 @@ void Move()
     }
 }
 
-//---------------- Clock functions ----------------
+//---------------- Clock and LCD functions ----------------
 
 ///Updates the false clock of the ROBUS everytime it is called.
 void Clock()
@@ -385,16 +385,23 @@ void Clock()
         timePrevious = millis();
         timeCurrent[SEC] += sec;
         timeHasChanged = true;
-    }
-    if(timeCurrent[SEC] >= 60)
-    {
-        timeCurrent[MIN] += timeCurrent[SEC] / 60;
-        timeCurrent[SEC] = timeCurrent[SEC] % 60;
-    }
-    if(timeCurrent[MIN] >= 60)
-    {
-        timeCurrent[HOUR] += timeCurrent[MIN] / 60;
-        timeCurrent[MIN] = timeCurrent[MIN] % 60;
+
+        if(timeCurrent[SEC] >= 60)
+        {
+            timeCurrent[MIN] += timeCurrent[SEC] / 60;
+            timeCurrent[SEC] %= 60;
+
+            if(timeCurrent[MIN] >= 60)
+            {
+                timeCurrent[HOUR] += timeCurrent[MIN] / 60;
+                timeCurrent[MIN] %= 60;
+
+                if(timeCurrent[HOUR] >= 24)
+                {
+                    timeCurrent[HOUR] %= 24;
+                }
+            }
+        }
     }
 }
 
@@ -425,6 +432,20 @@ void PrintTime()
         timeHasChanged = false;
 
         PrintInfoLine();
+
+        //to print in the console
+        if(timeCurrent[HOUR] < 10)
+            Serial.print('0');
+        Serial.print(timeCurrent[HOUR]);
+        Serial.print(':');
+        if(timeCurrent[MIN] < 10)
+            Serial.print('0');
+        Serial.print(timeCurrent[MIN]);
+        Serial.print('.');
+        if(timeCurrent[SEC] < 10)
+            Serial.print('0');
+        Serial.println(timeCurrent[SEC]);
+        //to print in the console
     }
 }
 
