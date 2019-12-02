@@ -68,6 +68,7 @@ const int TIME_ALARM_SEC = 0;
 
 //----- Bells -----
 const int TIME_START_BELLS = 10000;
+const int PIN_BELLS = 53;
 
 //----- Simon -----
 const int PIN_LED_01 = 23;
@@ -80,6 +81,8 @@ const int PIN_BUTTON_02 = 24;
 const int PIN_BUTTON_03 = 26;
 const int PIN_BUTTON_04 = 28;
 
+const int PIN_SWITCH = 52;
+
 const int LED_COUNT = 4;
 
 //--------------- Variables ---------------
@@ -89,6 +92,7 @@ Mode currentMode;
 bool runProgram;
 bool firstTimeInLoop;
 unsigned long timeIni;
+bool resetSeed;
 
 //----- Music -----
 bool musicPlaying;
@@ -108,14 +112,15 @@ int position[2]; //X and Y
 int pulsesToTravel[2]; //LEFT and RIGHT
 bool moveCompleted;
 
-//----- Clock -----
+//----- Clock and LCD -----
+LiquidCrystal lcd(40,2,3,42,4,38);
 int timeCurrent[3];
 unsigned long timePrevious;
 bool countdownOver;
 bool timeHasChanged;
 
-LiquidCrystal lcd(40,2,3,42,4,38);
-
+//----- Bells -----
+bool bellsAreActive;
 
 
 //---------------------------------------------------------------------------
@@ -134,7 +139,7 @@ int DistanceToPulses(float distance)
 ///Uses the linetracker to return some random value.
 int GetRandomData()
 {
-    return abs(analogRead(A1) + analogRead(A2) / analogRead(A3) - analogRead(A4) * analogRead(A5) + analogRead(A6) * analogRead(A7) + analogRead(A8)); 
+    return abs(analogRead(A1) + analogRead(A2) / analogRead(A3) - analogRead(A4) * analogRead(A5) + analogRead(A6));// * analogRead(A7) + analogRead(A8)); 
 }
 
 ///Returns a random number in the range provided.
@@ -142,11 +147,10 @@ int GetRandomData()
 ///max : the included maximum value.
 int Random(int min, int max)
 {
-    static bool first = true;
-    if(first) 
+    if(resetSeed) 
     {
-        srand(GetRandomData()); //seeding for the first time only, until the program restarts
-        first = false;
+        srand(GetRandomData());
+        resetSeed = false;
     }
     return min + (rand() % (max + 1 - min));
 }
@@ -154,20 +158,16 @@ int Random(int min, int max)
 ///Checks if the user has showed a sign of life.
 void CheckForInteraction()
 {
-    if(ROBUS_IsBumper(REAR))
+    /*if(digitalRead(PIN_SWITCH) == LOW)
     {
         currentMode = Mode::Simon;
-    }
-    //if(something)
-    //{
-    //    currentMode = Mode::Simon;
-    //}
+    }*/
 }
 
 ///Checks if it has to start the demo.
 void CheckForStart()
 {
-    if(ROBUS_IsBumper(FRONT))
+    if(ROBUS_IsBumper(REAR))
     {
         runProgram = true;
         timePrevious = millis();
@@ -306,7 +306,10 @@ void GenerateRandomMove()
             currentOrientation = (Orientation)(((int)currentOrientation - 1 + 4) % 4);
             break;
     }
-    //Serial.print("X : "); Serial.print(position[0]); Serial.print(" | Y : "); Serial.println(position[1]);
+    Serial.print("X : "); Serial.print(position[0]); Serial.print(" | Y : "); Serial.println(position[1]);
+    Serial.print("Nouveau mouvement : "); Serial.println(newMove); 
+    Serial.print(pulsesToTravel[LEFT]); Serial.print(" | "); Serial.println(pulsesToTravel[RIGHT]);
+
 
     //make sure the next loop starts the move
     moveCompleted = false;
@@ -335,14 +338,19 @@ void MoveUpdate()
         MOTOR_SetSpeed(RIGHT, speedSignRight * BASE_SPEED);
         totalPulsesLeft = 1;
         totalPulsesRight = 1;
+        delay(100);
     }
     else
     {
+        Serial.print("totalPulsesLeft  : "); Serial.println(ENCODER_Read(LEFT));
+        Serial.print("totalPulsesRight : "); Serial.println(ENCODER_Read(RIGHT));
         //it's in the middle of a movement
         deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
         deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
         totalPulsesLeft += deltaPulsesLeft;
         totalPulsesRight += deltaPulsesRight;
+
+        
 
         //the right motor is the master
         errorDelta = deltaPulsesRight - deltaPulsesLeft;
@@ -350,6 +358,7 @@ void MoveUpdate()
 
         correctedSpeed = BASE_SPEED + (errorDelta * kp) + (errorTotal * ki);
         MOTOR_SetSpeed(LEFT, speedSignLeft * correctedSpeed);
+        delay(1000);
     }
 }
 
@@ -445,7 +454,6 @@ void PrintTime()
         if(timeCurrent[SEC] < 10)
             Serial.print('0');
         Serial.println(timeCurrent[SEC]);
-        //to print in the console
     }
 }
 
@@ -486,7 +494,34 @@ void CheckForAlarm()
     }
 }
 
+//---------------- Bells functions ----------------
+
+void StartBells()
+{
+    digitalWrite(PIN_BELLS, HIGH);
+    bellsAreActive = true;
+}
+
+void StopBells()
+{
+    digitalWrite(PIN_BELLS, LOW);
+    bellsAreActive = false;
+}
+
+void Bells()
+{
+    if(!bellsAreActive)
+        StartBells();
+}
+
 //---------------- Simon functions ----------------
+
+void ReactivateSwitch()
+{
+    SERVO_SetAngle(0, 110);
+    delay(400);
+    SERVO_SetAngle(0, 170);
+}
 
 ///Executes the whole sequence for the Simon game.
 ///It's the only function that isn't called repeatedly in a loop - 
@@ -495,7 +530,7 @@ void Simon()
 {
     PrintInfoLine();
     StopMovement();
-    //stop the bells if they are currently activated?
+    StopBells();
 
     delay(1000);
 
@@ -601,7 +636,7 @@ void Simon()
         lcd.setCursor(1,1);
         lcd.print("Bonne journee!");
 
-        delay(10000);
+        delay(5000);
         
         reset(); //this will reset the robot, ready for a next demo
     }
@@ -610,10 +645,11 @@ void Simon()
         //Sequence is incorrect, or time is over
         lcd.clear();
         lcd.print("T'es pas bon");
-        delay(5000);
+        delay(2500);
+        ReactivateSwitch();
         currentMode = Mode::Alarm;
     }
-    firstTimeInLoop = true;
+    //firstTimeInLoop = true;
 }
 
 //---------------- Init and loop functions ----------------
@@ -637,6 +673,14 @@ void setup()
     pinMode(PIN_BUTTON_03, INPUT);
     pinMode(PIN_BUTTON_04, INPUT);
 
+    //--- Bells ---
+    pinMode(PIN_BELLS, OUTPUT);
+    digitalWrite(PIN_BELLS, LOW);
+
+    //--- Switch ---
+    SERVO_Enable(0);
+    ReactivateSwitch();
+    pinMode(PIN_SWITCH, INPUT);
 
     //----- Variables initialization -----
 
@@ -645,6 +689,7 @@ void setup()
     currentMode = Mode::Sleep;
     firstTimeInLoop = true;
     timeIni = 0;
+    resetSeed = true;
 
     //--- Music ---
     musicPlaying = false;
@@ -675,6 +720,9 @@ void setup()
     timePrevious = 0;
     timeHasChanged = true;
 
+    //--- Bells ---
+    bellsAreActive = false;
+
     PrintTime();
 }
 
@@ -683,7 +731,7 @@ void reset()
 {
     StopMusic();
     StopMovement();
-    //stop bells
+    StopBells();
     setup();
 }
 
@@ -703,11 +751,11 @@ void MainProgram()
             timeIni = millis();
             firstTimeInLoop = false;
         }
-        //Move();
+        Move();
         PlayMusic();
         if(millis() - timeIni > TIME_START_BELLS)
         {
-            //call the function that triggers the bells
+            Bells();
         }
         CheckForInteraction();
     }
