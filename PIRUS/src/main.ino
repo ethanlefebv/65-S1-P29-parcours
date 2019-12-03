@@ -48,8 +48,8 @@ const float BASE_VOLUME = 1;
 const unsigned long MUSIC_FADE_TIME = 10000; //in milliseconds
 
 //----- Movement -----
-const int DISTANCE = DistanceToPulses(20); 
-const int DISTANCE_ROTATION = DistanceToPulses(RADIUS_ROTATION * PI/2); //the rotations will always be of 90 degrees
+const int DISTANCE = 20;//DistanceToPulses(20); 
+const int DISTANCE_ROTATION = RADIUS_ROTATION * PI/2;//DistanceToPulses(RADIUS_ROTATION * PI/2); //the rotations will always be of 90 degrees
 //there are 4 movements (in order) : forward, backwards, turn left, turn right
 const int MOVEMENTS[4][2] = { {DISTANCE, DISTANCE}, {-DISTANCE, -DISTANCE}, {-DISTANCE_ROTATION, DISTANCE_ROTATION}, {DISTANCE_ROTATION, -DISTANCE_ROTATION}};
 const int INI_X = 1;
@@ -158,10 +158,10 @@ int Random(int min, int max)
 ///Checks if the user has showed a sign of life.
 void CheckForInteraction()
 {
-    /*if(digitalRead(PIN_SWITCH) == LOW)
+    if(digitalRead(PIN_SWITCH) == LOW)
     {
         currentMode = Mode::Simon;
-    }*/
+    }
 }
 
 ///Checks if it has to start the demo.
@@ -306,10 +306,6 @@ void GenerateRandomMove()
             currentOrientation = (Orientation)(((int)currentOrientation - 1 + 4) % 4);
             break;
     }
-    Serial.print("X : "); Serial.print(position[0]); Serial.print(" | Y : "); Serial.println(position[1]);
-    Serial.print("Nouveau mouvement : "); Serial.println(newMove); 
-    Serial.print(pulsesToTravel[LEFT]); Serial.print(" | "); Serial.println(pulsesToTravel[RIGHT]);
-
 
     //make sure the next loop starts the move
     moveCompleted = false;
@@ -338,19 +334,17 @@ void MoveUpdate()
         MOTOR_SetSpeed(RIGHT, speedSignRight * BASE_SPEED);
         totalPulsesLeft = 1;
         totalPulsesRight = 1;
-        delay(100);
     }
     else
     {
-        Serial.print("totalPulsesLeft  : "); Serial.println(ENCODER_Read(LEFT));
-        Serial.print("totalPulsesRight : "); Serial.println(ENCODER_Read(RIGHT));
         //it's in the middle of a movement
         deltaPulsesLeft = abs(ENCODER_ReadReset(LEFT));
         deltaPulsesRight = abs(ENCODER_ReadReset(RIGHT));
         totalPulsesLeft += deltaPulsesLeft;
         totalPulsesRight += deltaPulsesRight;
 
-        
+        //Serial.print("totalPulsesLeft  : "); Serial.println(totalPulsesLeft);
+        //Serial.print("totalPulsesRight : "); Serial.println(totalPulsesRight);
 
         //the right motor is the master
         errorDelta = deltaPulsesRight - deltaPulsesLeft;
@@ -358,7 +352,6 @@ void MoveUpdate()
 
         correctedSpeed = BASE_SPEED + (errorDelta * kp) + (errorTotal * ki);
         MOTOR_SetSpeed(LEFT, speedSignLeft * correctedSpeed);
-        delay(1000);
     }
 }
 
