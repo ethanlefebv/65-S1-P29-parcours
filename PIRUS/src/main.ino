@@ -84,6 +84,8 @@ const int PIN_BUTTON_04 = 28;
 const int PIN_SWITCH = 52;
 
 const int LED_COUNT = 4;
+///Sequence length
+const int SEQ_LEN = 6;
 
 //--------------- Variables ---------------
 
@@ -343,8 +345,8 @@ void MoveUpdate()
         totalPulsesLeft += deltaPulsesLeft;
         totalPulsesRight += deltaPulsesRight;
 
-        //Serial.print("totalPulsesLeft  : "); Serial.println(totalPulsesLeft);
-        //Serial.print("totalPulsesRight : "); Serial.println(totalPulsesRight);
+        Serial.print("totalPulsesLeft  : "); Serial.println(totalPulsesLeft);
+        Serial.print("totalPulsesRight : "); Serial.println(totalPulsesRight);
 
         //the right motor is the master
         errorDelta = deltaPulsesRight - deltaPulsesLeft;
@@ -531,12 +533,17 @@ void Simon()
     int button2IsPressed = 0;
     int button3IsPressed = 0;
     int button4IsPressed = 0;
-    int userOrder[5] = {0,0,0,0,0};
-    int simonOrder[5] = {Random(1, LED_COUNT), Random(1, LED_COUNT), Random(1, LED_COUNT), Random(1, LED_COUNT), Random(1, LED_COUNT)};
     int n = 0;
+    int userOrder[SEQ_LEN];
+    int simonOrder[SEQ_LEN];
+    for(int i = 0; i < SEQ_LEN; i++)
+    {
+        userOrder[i] = 0;
+        simonOrder[i] = Random(1, LED_COUNT);
+    }
 
     //----- Part 1 : Showing the sequence -----
-    for(int i = 0; i < 5; i++)
+    for(int i = 0; i < SEQ_LEN; i++)
     {
         if(simonOrder[i] == 1)
         {
@@ -572,7 +579,7 @@ void Simon()
 
     unsigned long timeSimonIni = millis();
 
-    while(n < 5 && (millis() - timeSimonIni) < 15000)
+    while(n < SEQ_LEN && (millis() - timeSimonIni) < 15000)
     {   
         button1IsPressed = digitalRead(PIN_BUTTON_01);
         button2IsPressed = digitalRead(PIN_BUTTON_02);
@@ -616,13 +623,14 @@ void Simon()
 
     //----- Part 3 : Determining the result -----
 
-    if ((userOrder[0] == simonOrder[0]) && 
-        (userOrder[1] == simonOrder[1]) && 
-        (userOrder[2] == simonOrder[2]) && 
-        (userOrder[3] == simonOrder[3]) && 
-        (userOrder[4] == simonOrder[4]))
+    bool seqIsCorrect = true;
+    for(int i = 0; i < SEQ_LEN && seqIsCorrect; i++)
     {
-        //Sequence is correct
+        seqIsCorrect = userOrder[i] == simonOrder[i];
+    }
+
+    if (seqIsCorrect)
+    {
         lcd.clear();
         lcd.setCursor(1,0);
         lcd.print("Defi complete");
