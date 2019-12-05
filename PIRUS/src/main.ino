@@ -57,6 +57,12 @@ const int INI_Y = 1;
 const int MAX_X = 2;
 const int MAX_Y = 2;
 
+const int SPEED = 40; // cm/s
+const unsigned long MOVE_TIME = DISTANCE / SPEED;
+const unsigned long MOVE_TIME_ROTATION = (RADIUS_ROTATION * PI/2) / SPEED;
+const unsigned long MOVEMENTS_TIME[4] = { MOVE_TIME, MOVE_TIME, MOVE_TIME_ROTATION, MOVE_TIME_ROTATION};
+const int SPEED_SIGN[4][2] = { {1, 1}, {-1, -1}, {-1, 1}, {1, -1}};
+
 //----- Clock -----
 const unsigned long COUNTDOWN_TIME = 10000;
 const int TIME_DEFAULT_HOUR = 6;
@@ -110,8 +116,12 @@ int totalPulsesLeft, totalPulsesRight,
 const float kp = 0.001, ki = 0.001;
 
 Orientation currentOrientation;
+int currentMove;
 int position[2]; //X and Y
 int pulsesToTravel[2]; //LEFT and RIGHT
+unsigned long timeToTravel;
+unsigned long timeBeginningMove;
+unsigned long timeCurrentMove;
 bool moveCompleted;
 
 //----- Clock and LCD -----
@@ -141,7 +151,7 @@ int DistanceToPulses(float distance)
 ///Uses the linetracker to return some random value.
 int GetRandomData()
 {
-    return abs(analogRead(A1) + analogRead(A2) / analogRead(A3) - analogRead(A4) * analogRead(A5) + analogRead(A6));// * analogRead(A7) + analogRead(A8)); 
+    return abs(analogRead(A1) + analogRead(A2) - analogRead(A3) - analogRead(A4) * analogRead(A5) + analogRead(A6));// * analogRead(A7) + analogRead(A8)); 
 }
 
 ///Returns a random number in the range provided.
@@ -160,9 +170,14 @@ int Random(int min, int max)
 ///Checks if the user has showed a sign of life.
 void CheckForInteraction()
 {
-    if(digitalRead(PIN_SWITCH) == LOW)
+    if(digitalRead(PIN_SWITCH) == LOW && currentMode == Mode::Alarm)
     {
         currentMode = Mode::Simon;
+    }
+    else if (digitalRead(PIN_SWITCH) == LOW && currentMode == Mode::Sleep)
+    {
+        delay(500);
+        ReactivateSwitch();
     }
 }
 
@@ -361,6 +376,9 @@ void MoveUpdate()
 void StopMovement()
 {
     moveCompleted = true;
+    timeBeginningMove = 0;
+    timeCurrentMove = 0;
+    currentMove = 0;
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
 }
@@ -375,6 +393,88 @@ void Move()
     else
     {
         MoveUpdate();
+    }
+}
+
+//---------------- Movement functions (time) ----------------
+
+///Generates a random move for the ROBUS. Makes sure it doesn't go out of the allowed area. Relies on time.
+void GenerateRandomMoveTime()
+{
+    int newMove = -1;
+    //check orientation and position, so the next move is chosen accordingly
+    int invalidMove = DetermineInvalidMove();
+
+    //pick a random, valid move
+    do
+    {
+        newMove = Random(0,3);
+    } 
+    while (newMove == invalidMove);
+    
+    currentMove = newMove;
+
+    //set the new distance to travel
+    timeToTravel = MOVEMENTS_TIME[currentMove];
+
+    //set the new position or orientation
+    switch (currentMove)
+    {
+        case FORWARD:
+            UpdatePosition(1);
+            break;
+        case BACKWARDS:
+            UpdatePosition(-1);
+            break;
+        case TURN_LEFT:
+            currentOrientation = (Orientation)(((int)currentOrientation + 1) % 4);
+            break;
+        case TURN_RIGHT:
+            currentOrientation = (Orientation)(((int)currentOrientation - 1 + 4) % 4);
+            break;
+    }
+
+    //make sure the next loop starts the move
+    moveCompleted = false;
+}
+
+///Moves the robot for a certain amount of time - doesn't rely on the encoders.
+void MoveUpdateTime()
+{
+    if(timeCurrentMove > timeToTravel)
+    {
+        //the current movement is complete, so we reset the values
+        MOTOR_SetSpeed(LEFT, 0);
+        MOTOR_SetSpeed(RIGHT, 0);
+        moveCompleted = true;
+        timeBeginningMove = 0;
+        timeCurrentMove = 0;
+    }
+    else if(timeCurrentMove == 0)
+    {
+        //it starts the movement, so we initialize correctly some stuff
+        MOTOR_SetSpeed(LEFT, SPEED_SIGN[currentMove][LEFT] * BASE_SPEED);
+        MOTOR_SetSpeed(RIGHT, SPEED_SIGN[currentMove][RIGHT] * BASE_SPEED);
+        timeBeginningMove = millis();
+        timeCurrentMove = 1;
+    }
+    else
+    {
+        //it's in the middle of a movement
+        timeCurrentMove = millis() - timeBeginningMove;
+    }
+}
+
+///The main function to call to move the robot, with time as a reference.
+void MoveTime()
+{
+    if(moveCompleted)
+    {
+        GenerateRandomMoveTime();
+    }
+    else
+    {
+        MoveUpdateTime();
     }
 }
 
@@ -712,6 +812,9 @@ void setup()
     position[Y] = INI_Y;
     pulsesToTravel[LEFT] = 0;
     pulsesToTravel[RIGHT] = 0;
+    timeToTravel = 0;
+    timeBeginningMove = 0;
+    timeCurrentMove = 0;
     moveCompleted = true;
 
     //--- Clock ---
@@ -752,7 +855,7 @@ void MainProgram()
             timeIni = millis();
             firstTimeInLoop = false;
         }
-        Move();
+        MoveTime();
         PlayMusic();
         if(millis() - timeIni > TIME_START_BELLS)
         {
