@@ -740,7 +740,22 @@ void Simon()
         lcd.setCursor(1,1);
         lcd.print("Bonne journee!");
 
-        delay(5000);
+        //flash the LEDs in case the LCD doesn't work
+        for(int i = 0; i < 3; i++)
+        {
+            digitalWrite(PIN_LED_01, HIGH);
+            digitalWrite(PIN_LED_02, HIGH);
+            digitalWrite(PIN_LED_03, HIGH);
+            digitalWrite(PIN_LED_04, HIGH);
+            delay(250);
+            digitalWrite(PIN_LED_01, LOW);
+            digitalWrite(PIN_LED_02, LOW);
+            digitalWrite(PIN_LED_03, LOW);
+            digitalWrite(PIN_LED_04, LOW);
+            delay(250);
+        }
+
+        //delay(5000);
         
         reset(); //this will reset the robot, ready for a next demo
     }
@@ -749,7 +764,17 @@ void Simon()
         //Sequence is incorrect, or time is over
         lcd.clear();
         lcd.print("Oh non, reessaie");
-        delay(2500);
+
+        //flash the red LED in case the LCD doesn't work
+        for(int i = 0; i < 3; i++)
+        {
+            digitalWrite(PIN_LED_01, HIGH);
+            delay(250);
+            digitalWrite(PIN_LED_01, LOW);
+            delay(250);
+        }
+
+        //delay(2500);
         ReactivateSwitch();
         currentMode = Mode::Alarm;
     }
