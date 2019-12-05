@@ -39,7 +39,7 @@ enum class Orientation { North, West, South, East};
 
 //----- General -----
 const float WHEEL_CIRCUMFERENCE = 23.94;
-const float RADIUS_ROTATION = 19.33 / 2; //19.33 is the distance between the wheels
+const float RADIUS_ROTATION = 40000 / 2; //19.33 is the distance between the wheels
 const int PULSES_PER_CYCLE = 3200;
 const float BASE_SPEED = 0.4;
 
@@ -48,7 +48,7 @@ const float BASE_VOLUME = 1;
 const unsigned long MUSIC_FADE_TIME = 10000; //in milliseconds
 
 //----- Movement -----
-const int DISTANCE = 20;//DistanceToPulses(20); 
+const int DISTANCE = 20000;//DistanceToPulses(20); 
 const int DISTANCE_ROTATION = RADIUS_ROTATION * PI/2;//DistanceToPulses(RADIUS_ROTATION * PI/2); //the rotations will always be of 90 degrees
 //there are 4 movements (in order) : forward, backwards, turn left, turn right
 const int MOVEMENTS[4][2] = { {DISTANCE, DISTANCE}, {-DISTANCE, -DISTANCE}, {-DISTANCE_ROTATION, DISTANCE_ROTATION}, {DISTANCE_ROTATION, -DISTANCE_ROTATION}};
@@ -67,13 +67,13 @@ const int SPEED_SIGN[4][2] = { {1, 1}, {-1, -1}, {-1, 1}, {1, -1}};
 const unsigned long COUNTDOWN_TIME = 10000;
 const int TIME_DEFAULT_HOUR = 6;
 const int TIME_DEFAULT_MIN = 59;
-const int TIME_DEFAULT_SEC = 50;
+const int TIME_DEFAULT_SEC = 55;
 const int TIME_ALARM_HOUR = 7;
 const int TIME_ALARM_MIN = 0;
 const int TIME_ALARM_SEC = 0;
 
 //----- Bells -----
-const int TIME_START_BELLS = 10000;
+const int TIME_START_BELLS = 5000;
 const int PIN_BELLS = 53;
 
 //----- Simon -----
@@ -91,7 +91,10 @@ const int PIN_SWITCH = 52;
 
 const int LED_COUNT = 4;
 ///Sequence length
-const int SEQ_LEN = 6;
+const int SEQ_LEN = 5;
+
+const unsigned long DELAY_LED = 300;
+const unsigned long DELAY_INPUT = 150;
 
 //--------------- Variables ---------------
 
@@ -614,7 +617,7 @@ void Bells()
 void ReactivateSwitch()
 {
     SERVO_SetAngle(0, 110);
-    delay(400);
+    delay(600);
     SERVO_SetAngle(0, 170);
 }
 
@@ -689,7 +692,7 @@ void Simon()
         if(button1IsPressed)
         {
             digitalWrite(PIN_LED_01, HIGH);
-            delay(200);
+            delay(DELAY_LED);
             digitalWrite(PIN_LED_01, LOW);
             userOrder[n] = 1;
             n++;
@@ -697,7 +700,7 @@ void Simon()
         if(button2IsPressed)
         {
             digitalWrite(PIN_LED_02, HIGH);
-            delay(200);
+            delay(DELAY_LED);
             digitalWrite(PIN_LED_02,LOW);
             userOrder[n] = 2;
             n++;
@@ -705,7 +708,7 @@ void Simon()
         if(button3IsPressed)
         {
             digitalWrite(PIN_LED_03, HIGH);
-            delay(200);
+            delay(DELAY_LED);
             digitalWrite(PIN_LED_03,LOW);
             userOrder[n] = 3;
             n++;
@@ -713,12 +716,12 @@ void Simon()
         if(button4IsPressed)
         {
             digitalWrite(PIN_LED_04, HIGH);
-            delay(200);
+            delay(DELAY_LED);
             digitalWrite(PIN_LED_04,LOW);
             userOrder[n] = 4;
             n++;
         }
-        delay(50);
+        delay(DELAY_INPUT);
     }
 
     //----- Part 3 : Determining the result -----
@@ -745,7 +748,7 @@ void Simon()
     {
         //Sequence is incorrect, or time is over
         lcd.clear();
-        lcd.print("T'es pas bon");
+        lcd.print("Oh non, reessaie");
         delay(2500);
         ReactivateSwitch();
         currentMode = Mode::Alarm;
