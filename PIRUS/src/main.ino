@@ -39,7 +39,7 @@ enum class Orientation { North, West, South, East};
 
 //----- General -----
 const float WHEEL_CIRCUMFERENCE = 23.94;
-const float RADIUS_ROTATION = 19.33 / 2; //19.33 is the distance between the wheels
+const float RADIUS_ROTATION = 40000 / 2; //19.33 is the distance between the wheels
 const int PULSES_PER_CYCLE = 3200;
 const float BASE_SPEED = 0.4;
 
@@ -48,7 +48,7 @@ const float BASE_VOLUME = 1;
 const unsigned long MUSIC_FADE_TIME = 10000; //in milliseconds
 
 //----- Movement -----
-const int DISTANCE = 20;//DistanceToPulses(20); 
+const int DISTANCE = 20000;//DistanceToPulses(20); 
 const int DISTANCE_ROTATION = RADIUS_ROTATION * PI/2;//DistanceToPulses(RADIUS_ROTATION * PI/2); //the rotations will always be of 90 degrees
 //there are 4 movements (in order) : forward, backwards, turn left, turn right
 const int MOVEMENTS[4][2] = { {DISTANCE, DISTANCE}, {-DISTANCE, -DISTANCE}, {-DISTANCE_ROTATION, DISTANCE_ROTATION}, {DISTANCE_ROTATION, -DISTANCE_ROTATION}};
@@ -57,17 +57,23 @@ const int INI_Y = 1;
 const int MAX_X = 2;
 const int MAX_Y = 2;
 
+const int SPEED = 40; // cm/s
+const unsigned long MOVE_TIME = DISTANCE / SPEED;
+const unsigned long MOVE_TIME_ROTATION = (RADIUS_ROTATION * PI/2) / SPEED;
+const unsigned long MOVEMENTS_TIME[4] = { MOVE_TIME, MOVE_TIME, MOVE_TIME_ROTATION, MOVE_TIME_ROTATION};
+const int SPEED_SIGN[4][2] = { {1, 1}, {-1, -1}, {-1, 1}, {1, -1}};
+
 //----- Clock -----
 const unsigned long COUNTDOWN_TIME = 10000;
 const int TIME_DEFAULT_HOUR = 6;
 const int TIME_DEFAULT_MIN = 59;
-const int TIME_DEFAULT_SEC = 50;
+const int TIME_DEFAULT_SEC = 55;
 const int TIME_ALARM_HOUR = 7;
 const int TIME_ALARM_MIN = 0;
 const int TIME_ALARM_SEC = 0;
 
 //----- Bells -----
-const int TIME_START_BELLS = 10000;
+const int TIME_START_BELLS = 5000;
 const int PIN_BELLS = 53;
 
 //----- Simon -----
@@ -85,7 +91,10 @@ const int PIN_SWITCH = 52;
 
 const int LED_COUNT = 4;
 ///Sequence length
-const int SEQ_LEN = 6;
+const int SEQ_LEN = 5;
+
+const unsigned long DELAY_LED = 300;
+const unsigned long DELAY_INPUT = 150;
 
 //--------------- Variables ---------------
 
@@ -110,8 +119,12 @@ int totalPulsesLeft, totalPulsesRight,
 const float kp = 0.001, ki = 0.001;
 
 Orientation currentOrientation;
+int currentMove;
 int position[2]; //X and Y
 int pulsesToTravel[2]; //LEFT and RIGHT
+unsigned long timeToTravel;
+unsigned long timeBeginningMove;
+unsigned long timeCurrentMove;
 bool moveCompleted;
 
 //----- Clock and LCD -----
@@ -141,7 +154,7 @@ int DistanceToPulses(float distance)
 ///Uses the linetracker to return some random value.
 int GetRandomData()
 {
-    return abs(analogRead(A1) + analogRead(A2) / analogRead(A3) - analogRead(A4) * analogRead(A5) + analogRead(A6));// * analogRead(A7) + analogRead(A8)); 
+    return abs(analogRead(A1) + analogRead(A2) - analogRead(A3) - analogRead(A4) * analogRead(A5) + analogRead(A6));// * analogRead(A7) + analogRead(A8)); 
 }
 
 ///Returns a random number in the range provided.
@@ -160,9 +173,14 @@ int Random(int min, int max)
 ///Checks if the user has showed a sign of life.
 void CheckForInteraction()
 {
-    if(digitalRead(PIN_SWITCH) == LOW)
+    if(digitalRead(PIN_SWITCH) == LOW && currentMode == Mode::Alarm)
     {
         currentMode = Mode::Simon;
+    }
+    else if (digitalRead(PIN_SWITCH) == LOW && currentMode == Mode::Sleep)
+    {
+        delay(500);
+        ReactivateSwitch();
     }
 }
 
@@ -361,6 +379,9 @@ void MoveUpdate()
 void StopMovement()
 {
     moveCompleted = true;
+    timeBeginningMove = 0;
+    timeCurrentMove = 0;
+    currentMove = 0;
     MOTOR_SetSpeed(LEFT, 0);
     MOTOR_SetSpeed(RIGHT, 0);
 }
@@ -375,6 +396,88 @@ void Move()
     else
     {
         MoveUpdate();
+    }
+}
+
+//---------------- Movement functions (time) ----------------
+
+///Generates a random move for the ROBUS. Makes sure it doesn't go out of the allowed area. Relies on time.
+void GenerateRandomMoveTime()
+{
+    int newMove = -1;
+    //check orientation and position, so the next move is chosen accordingly
+    int invalidMove = DetermineInvalidMove();
+
+    //pick a random, valid move
+    do
+    {
+        newMove = Random(0,3);
+    } 
+    while (newMove == invalidMove);
+    
+    currentMove = newMove;
+
+    //set the new distance to travel
+    timeToTravel = MOVEMENTS_TIME[currentMove];
+
+    //set the new position or orientation
+    switch (currentMove)
+    {
+        case FORWARD:
+            UpdatePosition(1);
+            break;
+        case BACKWARDS:
+            UpdatePosition(-1);
+            break;
+        case TURN_LEFT:
+            currentOrientation = (Orientation)(((int)currentOrientation + 1) % 4);
+            break;
+        case TURN_RIGHT:
+            currentOrientation = (Orientation)(((int)currentOrientation - 1 + 4) % 4);
+            break;
+    }
+
+    //make sure the next loop starts the move
+    moveCompleted = false;
+}
+
+///Moves the robot for a certain amount of time - doesn't rely on the encoders.
+void MoveUpdateTime()
+{
+    if(timeCurrentMove > timeToTravel)
+    {
+        //the current movement is complete, so we reset the values
+        MOTOR_SetSpeed(LEFT, 0);
+        MOTOR_SetSpeed(RIGHT, 0);
+        moveCompleted = true;
+        timeBeginningMove = 0;
+        timeCurrentMove = 0;
+    }
+    else if(timeCurrentMove == 0)
+    {
+        //it starts the movement, so we initialize correctly some stuff
+        MOTOR_SetSpeed(LEFT, SPEED_SIGN[currentMove][LEFT] * BASE_SPEED);
+        MOTOR_SetSpeed(RIGHT, SPEED_SIGN[currentMove][RIGHT] * BASE_SPEED);
+        timeBeginningMove = millis();
+        timeCurrentMove = 1;
+    }
+    else
+    {
+        //it's in the middle of a movement
+        timeCurrentMove = millis() - timeBeginningMove;
+    }
+}
+
+///The main function to call to move the robot, with time as a reference.
+void MoveTime()
+{
+    if(moveCompleted)
+    {
+        GenerateRandomMoveTime();
+    }
+    else
+    {
+        MoveUpdateTime();
     }
 }
 
@@ -514,7 +617,7 @@ void Bells()
 void ReactivateSwitch()
 {
     SERVO_SetAngle(0, 110);
-    delay(400);
+    delay(600);
     SERVO_SetAngle(0, 170);
 }
 
@@ -589,7 +692,7 @@ void Simon()
         if(button1IsPressed)
         {
             digitalWrite(PIN_LED_01, HIGH);
-            delay(200);
+            delay(DELAY_LED);
             digitalWrite(PIN_LED_01, LOW);
             userOrder[n] = 1;
             n++;
@@ -597,7 +700,7 @@ void Simon()
         if(button2IsPressed)
         {
             digitalWrite(PIN_LED_02, HIGH);
-            delay(200);
+            delay(DELAY_LED);
             digitalWrite(PIN_LED_02,LOW);
             userOrder[n] = 2;
             n++;
@@ -605,7 +708,7 @@ void Simon()
         if(button3IsPressed)
         {
             digitalWrite(PIN_LED_03, HIGH);
-            delay(200);
+            delay(DELAY_LED);
             digitalWrite(PIN_LED_03,LOW);
             userOrder[n] = 3;
             n++;
@@ -613,12 +716,12 @@ void Simon()
         if(button4IsPressed)
         {
             digitalWrite(PIN_LED_04, HIGH);
-            delay(200);
+            delay(DELAY_LED);
             digitalWrite(PIN_LED_04,LOW);
             userOrder[n] = 4;
             n++;
         }
-        delay(50);
+        delay(DELAY_INPUT);
     }
 
     //----- Part 3 : Determining the result -----
@@ -637,7 +740,22 @@ void Simon()
         lcd.setCursor(1,1);
         lcd.print("Bonne journee!");
 
-        delay(5000);
+        //flash the LEDs in case the LCD doesn't work
+        for(int i = 0; i < 3; i++)
+        {
+            digitalWrite(PIN_LED_01, HIGH);
+            digitalWrite(PIN_LED_02, HIGH);
+            digitalWrite(PIN_LED_03, HIGH);
+            digitalWrite(PIN_LED_04, HIGH);
+            delay(250);
+            digitalWrite(PIN_LED_01, LOW);
+            digitalWrite(PIN_LED_02, LOW);
+            digitalWrite(PIN_LED_03, LOW);
+            digitalWrite(PIN_LED_04, LOW);
+            delay(250);
+        }
+
+        //delay(5000);
         
         reset(); //this will reset the robot, ready for a next demo
     }
@@ -645,8 +763,18 @@ void Simon()
     {
         //Sequence is incorrect, or time is over
         lcd.clear();
-        lcd.print("T'es pas bon");
-        delay(2500);
+        lcd.print("Oh non, reessaie");
+
+        //flash the red LED in case the LCD doesn't work
+        for(int i = 0; i < 3; i++)
+        {
+            digitalWrite(PIN_LED_01, HIGH);
+            delay(250);
+            digitalWrite(PIN_LED_01, LOW);
+            delay(250);
+        }
+
+        //delay(2500);
         ReactivateSwitch();
         currentMode = Mode::Alarm;
     }
@@ -712,6 +840,9 @@ void setup()
     position[Y] = INI_Y;
     pulsesToTravel[LEFT] = 0;
     pulsesToTravel[RIGHT] = 0;
+    timeToTravel = 0;
+    timeBeginningMove = 0;
+    timeCurrentMove = 0;
     moveCompleted = true;
 
     //--- Clock ---
@@ -752,7 +883,7 @@ void MainProgram()
             timeIni = millis();
             firstTimeInLoop = false;
         }
-        Move();
+        MoveTime();
         PlayMusic();
         if(millis() - timeIni > TIME_START_BELLS)
         {
